@@ -1,0 +1,4 @@
+"scripts": {
+    "start": "node index.js",
+    "heroku-postbuild": "echo 'export GIT_HASH=$(git rev-parse --short HEAD)' > .profile.d/git.sh"
+}

@@ -1,3 +1,6 @@
+import os
+
+from cassandra.auth import PlainTextAuthProvider
 from cassandra.cluster import Cluster
 from flask import Flask, request, jsonify
 
@@ -11,6 +14,13 @@ from db import DB
 
 db = DB(Cluster())
 app = Flask(__name__)
+
+
+@app.route("/")
+def index():
+    git_hash = os.environ.get('GIT_HASH', 'Git SHA not found')
+    return f'Current Git SHA: {git_hash}'
+
 
 @app.route('/save_if_article', methods=['POST'])
 def save_if_article():
