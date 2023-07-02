@@ -38,7 +38,7 @@ def index():
 
 @app.route('/search', methods=['GET'])
 def search():
-    user_id_str = request.args.get('user_id_str')
+    user_id_str = request.args.get('user_id')
     if not user_id_str:
         return jsonify({"error": "user_id not provided"}), 400
 
