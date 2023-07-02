@@ -12,7 +12,7 @@ import logic
 
 from db import DB
 cloud_config= {
-  'secure_connect_bundle': os.path.join(cwd, '<</PATH/TO/>>secure-connect-total-recall.zip')
+  'secure_connect_bundle': os.path.join(cwd, 'secure-connect-total-recall.zip')
 }
 auth_provider = PlainTextAuthProvider(os.environ.get('ASTRA_CLIENT_ID'), os.environ.get('ASTRA_CLIENT_SECRET'))
 cluster = Cluster(cloud=cloud_config, auth_provider=auth_provider)
