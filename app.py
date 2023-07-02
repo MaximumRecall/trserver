@@ -1,4 +1,5 @@
 import os
+import subprocess
 
 from cassandra.cluster import Cluster
 from flask import Flask, request, render_template, jsonify
@@ -29,7 +30,9 @@ app.config['SECRET_KEY'] = os.urandom(32)
 
 @app.route("/")
 def index():
-    git_hash = os.environ.get('GIT_HASH', 'Git SHA not found')
+    git_hash = os.environ.get('GIT_HASH')
+    if not git_hash:
+        git_hash = subprocess.check_output(['git', 'rev-parse', 'HEAD']).decode('utf-8').strip()
     return f"It's alive! Current Git SHA: {git_hash}"
 
 
