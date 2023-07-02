@@ -27,7 +27,7 @@ prompt = ("You are a helpful assistant who will determine if the provided web pa
           "Respond with Article, Other, or Unsure.")
 
 def is_article(html_content: str) -> bool:
-    content = BeautifulSoup(html_content, 'html.parser').get_text()
+    content = BeautifulSoup(html_content, 'html.parser').get_text(" ", strip=True)
 
     truncated = truncate_to(content, 4000)
     response = openai.ChatCompletion.create(
