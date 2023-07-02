@@ -29,11 +29,12 @@ prompt = ("You are a helpful assistant who will determine if the provided web pa
 def is_article(html_content: str) -> bool:
     content = BeautifulSoup(html_content, 'html.parser').get_text()
 
+    truncated = truncate_to(content, 4000)
     response = openai.ChatCompletion.create(
         model="gpt-3.5-turbo",
         messages=[
             {"role": "system", "content": prompt},
-            {"role": "user", "content": truncate_to(content, 4000)},
+            {"role": "user", "content": truncated},
         ]
     )
 
@@ -41,12 +42,23 @@ def is_article(html_content: str) -> bool:
         return r.choices[0].message.content.lower()
 
     if answer(response) == "unsure":
-        response = openai.ChatCompletion.create(
-            model="gpt-3.5-turbo-16k",
-            messages=[
-                {"role": "system", "content": prompt},
-                {"role": "user", "content": truncate_to(content, 15900)},
-            ]
-        )
+        if len(truncated) < 0.6 * len(content):
+            # if we had to truncate the content significantly, try again with more context
+            response = openai.ChatCompletion.create(
+                model="gpt-3.5-turbo-16k",
+                messages=[
+                    {"role": "system", "content": prompt},
+                    {"role": "user", "content": truncate_to(content, 15900)},
+                ]
+            )
+        else:
+            # try again with more capable model
+            response = openai.ChatCompletion.create(
+                model="gpt-4",
+                messages=[
+                    {"role": "system", "content": prompt},
+                    {"role": "user", "content": content},
+                ]
+            )
 
     return answer(response) == "article"
