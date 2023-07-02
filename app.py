@@ -1,14 +1,11 @@
 import os
 
-from cassandra.auth import PlainTextAuthProvider
 from cassandra.cluster import Cluster
-from flask import Flask, request, jsonify
+from flask import Flask, request, render_template, jsonify
 
-from pathlib import Path
-import sys
-cwd = str(Path(__file__).parent)
-sys.path.append(cwd)
-import logic
+from .db import DB
+from . import logic
+from .forms import SearchForm
 
 from db import DB
 cloud_config = {
@@ -32,7 +29,33 @@ app = Flask(__name__)
 @app.route("/")
 def index():
     git_hash = os.environ.get('GIT_HASH', 'Git SHA not found')
-    return f'Current Git SHA: {git_hash}'
+    return f"It's alive! Current Git SHA: {git_hash}"
+
+
+app = Flask(__name__)
+app.config['SECRET_KEY'] = os.urandom(32)
+
+
+@app.route('/search', methods=['GET'])
+def search():
+    user_id_str = request.args.get('user_id_str')
+    if not user_id_str:
+        return jsonify({"error": "user_id not provided"}), 400
+
+    urls = logic.recent_urls(db, user_id_str)
+    form = SearchForm(user_id_str=user_id_str)
+    return render_template('search.html', urls=urls, form=form)
+
+
+@app.route('/results', methods=['POST'])
+def results():
+    form = SearchForm()
+    if form.validate_on_submit():
+        search_results = logic.search(db, form.user_id_str.data, form.search_text.data)
+        return render_template('results.html', results=search_results)
+
+    return jsonify({"error": "Invalid form data"}), 400
+
 
 
 @app.route('/save_if_article', methods=['POST'])

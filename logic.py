@@ -8,7 +8,8 @@ from sentence_transformers import SentenceTransformer
 import nltk
 # nltk.download('punkt')
 
-from db import DB
+from .db import DB
+from cassandra.cluster import ResultSet
 openai.api_key = os.environ.get('OPENAI_KEY')
 if not openai.api_key:
     raise Exception('OPENAI_KEY environment variable not set')
@@ -91,7 +92,7 @@ def _save_article(db: DB, text: str, url: str, title: str, user_id: uuid4) -> No
     sentences = nltk.sent_tokenize(text)
     vectors = encoder.encode(sentences, normalize_embeddings=True)
     chunks = [(uuid1(), sentence, v) for sentence, v in zip(sentences, vectors)]
-    db.upsert_batch(user_id, url, title, chunks)
+    db.upsert_chunks(user_id, url, title, chunks)
 
 
 def save_if_article(db: DB, html_content: str, url: str, user_id_str: str) -> bool:
@@ -106,6 +107,15 @@ def save_if_article(db: DB, html_content: str, url: str, user_id_str: str) -> bo
         title = summarize(text)
     _save_article(db, text, url, title, user_id)
     return True
+
+
+def recent_urls(db: DB, user_id_str: str) -> ResultSet:
+    return db.recent_urls(UUID(user_id_str))
+
+
+def search(db: DB, user_id_str, search_text):
+    vector = encoder.encode([search_text], normalize_embeddings=True)[0]
+    return db.search(UUID(user_id_str), vector)
 
 
 # for testing

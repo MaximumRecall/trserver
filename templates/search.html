@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Search</title>
+</head>
+<body>
+    <h1>Recent URLs</h1>
+    {% for url in urls %}
+        <p>
+            <a href="{{ url.url }}">{{ url.title }}</a><br>
+            Saved at: {{ url.saved_at }}
+        </p>
+    {% endfor %}
+
+    <h1>Search</h1>
+    <form method="POST" action="/results">
+        {{ form.hidden_tag() }}
+        {{ form.search_text.label }} {{ form.search_text() }}
+        <input type="submit" value="Search" />
+    </form>
+</body>
+</html>
