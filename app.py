@@ -11,7 +11,7 @@ sys.path.append(cwd)
 import logic
 
 from db import DB
-cloud_config= {
+cloud_config = {
   'secure_connect_bundle': os.path.join(cwd, 'secure-connect-total-recall.zip')
 }
 astra_client_id = os.environ.get('ASTRA_CLIENT_ID')
@@ -23,6 +23,8 @@ if not astra_client_secret:
 auth_provider = PlainTextAuthProvider(astra_client_id, astra_client_secret)
 cluster = Cluster(cloud=cloud_config, auth_provider=auth_provider)
 db = DB(cluster)
+# running locally
+# db = DB(Cluster())
 
 app = Flask(__name__)
 
