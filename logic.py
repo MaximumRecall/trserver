@@ -13,6 +13,7 @@ openai.api_key = os.environ.get('OPENAI_KEY')
 tokenizer = tiktoken.encoding_for_model('gpt-3.5-turbo')
 encoder = SentenceTransformer('multi-qa-MiniLM-L6-dot-v1')
 
+
 def truncate_to(source, max_tokens):
     tokens = list(tokenizer.encode(source))
     truncated_tokens = []
@@ -28,16 +29,32 @@ def truncate_to(source, max_tokens):
     return truncated_s
 
 
-prompt = ("You are a helpful assistant who will determine if the provided web page content "
-          "is an article consisting mostly of text, or something else. "
-          "Respond with Article, Other, or Unsure.")
+summarize_prompt = ("You are a helpful assistant who will give the subject of the provided web page content in a single sentence. "
+                    "Do not begin your response with 'The web page', or 'The subject is', just give the subject with no extra context. "
+                    "Examples of good responses: "
+                    "The significance of German immigrants in early Texas history, "
+                    "The successes and shortcomings of persistent collections in server-side Java development.")
+def summarize(text: str) -> str:
+    truncated = truncate_to(text, 3900)
+    response = openai.ChatCompletion.create(
+        model="gpt-3.5-turbo",
+        messages=[
+            {"role": "system", "content": summarize_prompt},
+            {"role": "user", "content": truncated},
+        ]
+    )
+    return response.choices[0].message.content
 
+
+article_prompt = ("You are a helpful assistant who will determine if the provided web page content "
+                  "is an article consisting mostly of text, or something else. "
+                  "Respond with Article, Other, or Unsure.")
 def _is_article(text: str) -> bool:
     truncated = truncate_to(text, 4000)
     response = openai.ChatCompletion.create(
         model="gpt-3.5-turbo",
         messages=[
-            {"role": "system", "content": prompt},
+            {"role": "system", "content": article_prompt},
             {"role": "user", "content": truncated},
         ]
     )
@@ -51,7 +68,7 @@ def _is_article(text: str) -> bool:
             response = openai.ChatCompletion.create(
                 model="gpt-3.5-turbo-16k",
                 messages=[
-                    {"role": "system", "content": prompt},
+                    {"role": "system", "content": article_prompt},
                     {"role": "user", "content": truncate_to(text, 15900)},
                 ]
             )
@@ -60,7 +77,7 @@ def _is_article(text: str) -> bool:
             response = openai.ChatCompletion.create(
                 model="gpt-4",
                 messages=[
-                    {"role": "system", "content": prompt},
+                    {"role": "system", "content": article_prompt},
                     {"role": "user", "content": text},
                 ]
             )
@@ -75,13 +92,17 @@ def _save_article(db: DB, text: str, url: str, title: str, user_id: uuid4) -> No
     db.upsert_batch(user_id, url, title, chunks)
 
 
-def save_if_article(db: DB, html_content: str, url: str, title: str, user_id_str: str) -> bool:
+def save_if_article(db: DB, html_content: str, url: str, user_id_str: str) -> bool:
     user_id = UUID(user_id_str)
-    text = BeautifulSoup(html_content, 'html.parser').get_text(" ", strip=True)
+    soup = BeautifulSoup(html_content, 'html.parser')
+    text = soup.get_text(" ", strip=True)
     if not _is_article(text):
         return False
 
-    save_article(db, text, url, title, user_id)
+    title = soup.title.string.strip() if soup.title else ""
+    if len(title) < 15:
+        title = summarize(text)
+    _save_article(db, text, url, title, user_id)
     return True
 
 
@@ -90,6 +111,8 @@ def is_article(html_content: str) -> bool:
     text = BeautifulSoup(html_content, 'html.parser').get_text(" ", strip=True)
     return _is_article(text)
 
-def save_article(db: DB, html_content: str, url: str, title: str, user_id: uuid4) -> None:
-    text = BeautifulSoup(html_content, 'html.parser').get_text(" ", strip=True)
+def save_article(db: DB, html_content: str, url: str, user_id: uuid4) -> None:
+    soup = BeautifulSoup(html_content, 'html.parser')
+    text = soup.get_text(" ", strip=True)
+    title = soup.title.string.strip()
     _save_article(db, text, url, title, user_id)

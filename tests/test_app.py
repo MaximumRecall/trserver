@@ -7,7 +7,7 @@ from cassandra.cluster import Cluster
 
 current_dir = Path(__file__).parent
 sys.path.append(os.path.join(current_dir, '..'))
-from logic import is_article, save_article
+from logic import is_article, save_article, summarize
 from db import DB
 
 
@@ -27,8 +27,13 @@ def test_not_article():
 def test_save_article():
     with open(os.path.join(current_dir, 'resources', 'article.html'), 'r') as file:
         content = file.read()
-    save_article(db, content, 'http://example.com', 'Example', user_id)
+    save_article(db, content, 'http://example.com', user_id)
+
+def test_summarize():
+    with open(os.path.join(current_dir, 'resources', 'article.html'), 'r') as file:
+        content = file.read()
+    print(summarize(content))
 
 
 if __name__ == '__main__':
-    test_save_article()
+    test_summarize()
