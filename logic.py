@@ -1,13 +1,17 @@
+import os
+from uuid import uuid1, UUID, uuid4
+
 from bs4 import BeautifulSoup
 import openai
 import tiktoken
-
+from sentence_transformers import SentenceTransformer
 import nltk
 nltk.download('punkt')
 
-openai.api_key = open('openai.key', 'r').read().splitlines()[0]
-
+from db import DB
+openai.api_key = os.environ.get('OPENAI_KEY')
 tokenizer = tiktoken.encoding_for_model('gpt-3.5-turbo')
+encoder = SentenceTransformer('multi-qa-MiniLM-L6-dot-v1')
 
 def truncate_to(source, max_tokens):
     tokens = list(tokenizer.encode(source))
@@ -28,8 +32,8 @@ prompt = ("You are a helpful assistant who will determine if the provided web pa
           "is an article consisting mostly of text, or something else. "
           "Respond with Article, Other, or Unsure.")
 
-def is_article(content: str) -> bool:
-    truncated = truncate_to(content, 4000)
+def _is_article(text: str) -> bool:
+    truncated = truncate_to(text, 4000)
     response = openai.ChatCompletion.create(
         model="gpt-3.5-turbo",
         messages=[
@@ -42,13 +46,13 @@ def is_article(content: str) -> bool:
         return r.choices[0].message.content.lower()
 
     if answer(response) == "unsure":
-        if len(truncated) < 0.6 * len(content):
+        if len(truncated) < 0.6 * len(text):
             # if we had to truncate the content significantly, try again with more context
             response = openai.ChatCompletion.create(
                 model="gpt-3.5-turbo-16k",
                 messages=[
                     {"role": "system", "content": prompt},
-                    {"role": "user", "content": truncate_to(content, 15900)},
+                    {"role": "user", "content": truncate_to(text, 15900)},
                 ]
             )
         else:
@@ -57,17 +61,35 @@ def is_article(content: str) -> bool:
                 model="gpt-4",
                 messages=[
                     {"role": "system", "content": prompt},
-                    {"role": "user", "content": content},
+                    {"role": "user", "content": text},
                 ]
             )
 
     return answer(response) == "article"
 
 
-def save_if_article(html_content: str) -> bool:
-    content = BeautifulSoup(html_content, 'html.parser').get_text(" ", strip=True)
-    if not is_article(content):
+def _save_article(db: DB, text: str, url: str, title: str, user_id: uuid4) -> None:
+    sentences = nltk.sent_tokenize(text)
+    vectors = encoder.encode(sentences, normalize_embeddings=True)
+    chunks = [(uuid1(), sentence, v) for sentence, v in zip(sentences, vectors)]
+    db.upsert_batch(user_id, url, title, chunks)
+
+
+def save_if_article(db: DB, html_content: str, url: str, title: str, user_id_str: str) -> bool:
+    user_id = UUID(user_id_str)
+    text = BeautifulSoup(html_content, 'html.parser').get_text(" ", strip=True)
+    if not _is_article(text):
         return False
 
-    print(nltk.sent_tokenize(content))
+    save_article(db, text, url, title, user_id)
     return True
+
+
+# for testing
+def is_article(html_content: str) -> bool:
+    text = BeautifulSoup(html_content, 'html.parser').get_text(" ", strip=True)
+    return _is_article(text)
+
+def save_article(db: DB, html_content: str, url: str, title: str, user_id: uuid4) -> None:
+    text = BeautifulSoup(html_content, 'html.parser').get_text(" ", strip=True)
+    _save_article(db, text, url, title, user_id)
