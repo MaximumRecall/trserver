@@ -6,7 +6,7 @@ import openai
 import tiktoken
 from sentence_transformers import SentenceTransformer
 import nltk
-nltk.download('punkt')
+# nltk.download('punkt')
 
 from db import DB
 openai.api_key = os.environ.get('OPENAI_KEY')
