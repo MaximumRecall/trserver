@@ -2,6 +2,8 @@ from bs4 import BeautifulSoup
 import openai
 import tiktoken
 
+import nltk
+nltk.download('punkt')
 
 openai.api_key = open('openai.key', 'r').read().splitlines()[0]
 
@@ -26,9 +28,7 @@ prompt = ("You are a helpful assistant who will determine if the provided web pa
           "is an article consisting mostly of text, or something else. "
           "Respond with Article, Other, or Unsure.")
 
-def is_article(html_content: str) -> bool:
-    content = BeautifulSoup(html_content, 'html.parser').get_text(" ", strip=True)
-
+def is_article(content: str) -> bool:
     truncated = truncate_to(content, 4000)
     response = openai.ChatCompletion.create(
         model="gpt-3.5-turbo",
@@ -62,3 +62,12 @@ def is_article(html_content: str) -> bool:
             )
 
     return answer(response) == "article"
+
+
+def save_if_article(html_content: str) -> bool:
+    content = BeautifulSoup(html_content, 'html.parser').get_text(" ", strip=True)
+    if not is_article(content):
+        return False
+
+    print(nltk.sent_tokenize(content))
+    return True
