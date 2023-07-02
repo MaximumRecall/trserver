@@ -14,7 +14,13 @@ from db import DB
 cloud_config= {
   'secure_connect_bundle': os.path.join(cwd, 'secure-connect-total-recall.zip')
 }
-auth_provider = PlainTextAuthProvider(os.environ.get('ASTRA_CLIENT_ID'), os.environ.get('ASTRA_CLIENT_SECRET'))
+astra_client_id = os.environ.get('ASTRA_CLIENT_ID')
+if not astra_client_id:
+    raise Exception('ASTRA_CLIENT_ID environment variable not set')
+astra_client_secret = os.environ.get('ASTRA_CLIENT_SECRET')
+if not astra_client_secret:
+    raise Exception('ASTRA_CLIENT_SECRET environment variable not set')
+auth_provider = PlainTextAuthProvider(astra_client_id, astra_client_secret)
 cluster = Cluster(cloud=cloud_config, auth_provider=auth_provider)
 db = DB(cluster)
 

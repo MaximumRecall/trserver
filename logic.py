@@ -10,6 +10,8 @@ import nltk
 
 from db import DB
 openai.api_key = os.environ.get('OPENAI_KEY')
+if not openai.api_key:
+    raise Exception('OPENAI_KEY environment variable not set')
 tokenizer = tiktoken.encoding_for_model('gpt-3.5-turbo')
 encoder = SentenceTransformer('multi-qa-MiniLM-L6-dot-v1')
 
