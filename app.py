@@ -24,16 +24,13 @@ db = DB(cluster)
 # db = DB(Cluster())
 
 app = Flask(__name__)
+app.config['SECRET_KEY'] = os.urandom(32)
 
 
 @app.route("/")
 def index():
     git_hash = os.environ.get('GIT_HASH', 'Git SHA not found')
     return f"It's alive! Current Git SHA: {git_hash}"
-
-
-app = Flask(__name__)
-app.config['SECRET_KEY'] = os.urandom(32)
 
 
 @app.route('/search', methods=['GET'])
