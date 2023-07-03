@@ -1,4 +1,6 @@
 import os
+from datetime import datetime
+from typing import List, Dict
 from uuid import uuid1, UUID, uuid4
 
 from bs4 import BeautifulSoup
@@ -111,8 +113,11 @@ def save_if_article(db: DB, html_content: str, url: str, user_id_str: str) -> bo
     return True
 
 
-def recent_urls(db: DB, user_id_str: str) -> ResultSet:
-    return db.recent_urls(UUID(user_id_str))
+def recent_urls(db: DB, user_id_str: str) -> list[dict[str, str | datetime]]:
+    results = db.recent_urls(UUID(user_id_str))
+    for result in results:
+        result['saved_at'] = humanize_datetime(result['saved_at'])
+    return results
 
 
 def search(db: DB, user_id_str: str, search_text: str) -> list:

@@ -91,7 +91,7 @@ class DB:
             raise Exception(f"Failed to insert {len(denormalized_chunks)} chunks")
 
 
-    def recent_urls(self, user_id: uuid4) -> ResultSet:
+    def recent_urls(self, user_id: uuid4) -> List[Dict[str, Union[str, datetime]]]:
         query = self.session.prepare(
             f"""
             SELECT url, title, toTimestamp(url_id) as saved_at 
@@ -99,7 +99,8 @@ class DB:
             WHERE user_id = ? LIMIT 10
             """
         )
-        return self.session.execute(query, (user_id,))
+        results = self.session.execute(query, (user_id,))
+        return [{k: getattr(row, k) for k in ['url', 'title', 'saved_at']} for row in results]
 
 
     def search(self, user_id: uuid4, vector: List[float]) -> List[Dict[str, Union[Tuple[str, float], datetime, List[str]]]]:
