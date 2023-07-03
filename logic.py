@@ -3,17 +3,16 @@ from datetime import datetime
 from typing import List, Dict
 from uuid import uuid1, UUID, uuid4
 
-from bs4 import BeautifulSoup
+import nltk
 import openai
 import tiktoken
+from bs4 import BeautifulSoup
 from sentence_transformers import SentenceTransformer
-import nltk
-
-from .util import humanize_datetime
-# nltk.download('punkt')
 
 from .db import DB
-from cassandra.cluster import ResultSet
+from .util import humanize_datetime
+
+# nltk.download('punkt') # needed locally; in heroku this is done in nltk.txt
 openai.api_key = os.environ.get('OPENAI_KEY')
 if not openai.api_key:
     raise Exception('OPENAI_KEY environment variable not set')
