@@ -1,15 +1,10 @@
 import os
-import sys
-from pathlib import Path
 from uuid import uuid4
 
 from cassandra.cluster import Cluster
 
-current_dir = Path(__file__).parent
-sys.path.append(os.path.join(current_dir, '..'))
-from logic import is_article, save_article, summarize
 from db import DB
-
+from logic import is_article, save_article, summarize
 
 db = DB(Cluster())
 user_id = uuid4()
@@ -18,6 +13,9 @@ def test_article():
     with open(os.path.join(current_dir, 'resources', 'article.html'), 'r') as file:
         content = file.read()
     assert is_article(content)
+
+def test_reddit_article():
+    assert is_article("", "https://www.reddit.com/r/Xreal/comments/13xgvnv/what_is_3dof_screen_mirroring_and_what_does_xreal/")
 
 def test_not_article():
     with open(os.path.join(current_dir, 'resources', 'not-article.html'), 'r') as file:
@@ -36,4 +34,4 @@ def test_summarize():
 
 
 if __name__ == '__main__':
-    test_summarize()
+    test_reddit_article()
