@@ -52,11 +52,13 @@ def summarize(text: str) -> str:
     return response.choices[0].message.content
 
 
-article_prompt = ("You are a helpful assistant who will determine if the provided web page content "
-                  "is an article consisting mostly of text, or something else. "
-                  "Respond with Article, Other, or Unsure.")
+article_prompt = ("Given an excerpt of a webpage's text, identify if it is content-focused or not."
+                  "A content-focused webpage primarily aims to provide facts, data, knowledge, or insights "
+                  "on a specific topic or variety of topics. In contrast, non-informational webpages might be "
+                  "primarily intended for navigational, overview, or entertainment purposes. "
+                  "Consider the following description and categorize it as Content, Other, or Unsure.")
 def _is_article(text: str) -> bool:
-    truncated = truncate_to(text, 4000)
+    truncated = truncate_to(text, 3900)
     response = openai.ChatCompletion.create(
         model="gpt-3.5-turbo",
         messages=[
@@ -88,7 +90,7 @@ def _is_article(text: str) -> bool:
                 ]
             )
 
-    return answer(response) == "article"
+    return answer(response) == "content"
 
 
 def _save_article(db: DB, text: str, url: str, title: str, user_id: uuid4) -> None:
@@ -133,13 +135,6 @@ def search(db: DB, user_id_str: str, search_text: str) -> list:
 
 # for testing
 def is_article(html_content: str, url: str = None) -> bool:
-    # if url starts with reddit.com/r/.*/comments/ then return true
-    if url:
-        parsed_url = urlparse(url)
-        # reddit comments threads are treated as articles
-        if ((parsed_url.netloc.startswith('www.reddit.com') or parsed_url.netloc.startswith('reddit.com'))
-                and parsed_url.path.startswith('/r/') and '/comments/' in parsed_url.path):
-            return True
     text = BeautifulSoup(html_content, 'html.parser').get_text(" ", strip=True)
     return _is_article(text)
 
