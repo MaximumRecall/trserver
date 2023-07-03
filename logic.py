@@ -6,6 +6,8 @@ import openai
 import tiktoken
 from sentence_transformers import SentenceTransformer
 import nltk
+
+from .util import humanize_datetime
 # nltk.download('punkt')
 
 from .db import DB
@@ -113,10 +115,12 @@ def recent_urls(db: DB, user_id_str: str) -> ResultSet:
     return db.recent_urls(UUID(user_id_str))
 
 
-def search(db: DB, user_id_str, search_text):
+def search(db: DB, user_id_str: str, search_text: str) -> list:
     vector = encoder.encode([search_text], normalize_embeddings=True)[0]
-    return db.search(UUID(user_id_str), vector)
-
+    results = db.search(UUID(user_id_str), vector)
+    for result in results:
+        result['saved_at'] = humanize_datetime(result['saved_at'])
+    return results
 
 # for testing
 def is_article(html_content: str) -> bool:

@@ -4,14 +4,22 @@
     <title>Search Results</title>
 </head>
 <body>
+    <form method="POST" action="/results">
+        {{ form.hidden_tag() }}
+        {{ form.search_text.label }} {{ form.search_text() }}
+        <input type="submit" value="Search" />
+    </form>
     <h1>Search Results</h1>
     {% for result in results %}
         <p>
-            <a href="{{ result.url }}">{{ result.title }}</a><br>
-            Matched text: {{ result.chunk }}<br>
-            Saved at: {{ result.saved_at }}
+            <a href="{{ result.url }}">{{ result.title }}</a> ({{ result.saved_at }})
+            <br>
+            <ul>
+            {% for chunk in result.chunks %}
+                <li>{{ chunk }}</li>
+            {% endfor %}
+            </ul>
         </p>
     {% endfor %}
-    <a href="/search">Back to Search</a>
 </body>
 </html>

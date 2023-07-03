@@ -52,7 +52,7 @@ def results():
     form = SearchForm()
     if form.validate_on_submit():
         search_results = logic.search(db, form.user_id_str.data, form.search_text.data)
-        return render_template('results.html', results=search_results)
+        return render_template('results.html', results=search_results, form=form)
 
     return jsonify({"error": "Invalid form data"}), 400
 
