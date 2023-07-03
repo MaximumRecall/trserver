@@ -1,6 +1,6 @@
 import os
 from datetime import datetime
-from typing import List, Dict
+from urllib.parse import urlparse
 from uuid import uuid1, UUID, uuid4
 
 import nltk
@@ -127,7 +127,14 @@ def search(db: DB, user_id_str: str, search_text: str) -> list:
     return results
 
 # for testing
-def is_article(html_content: str) -> bool:
+def is_article(html_content: str, url: str = None) -> bool:
+    # if url starts with reddit.com/r/.*/comments/ then return true
+    if url:
+        parsed_url = urlparse(url)
+        # reddit comments threads are treated as articles
+        if ((parsed_url.netloc.startswith('www.reddit.com') or parsed_url.netloc.startswith('reddit.com'))
+                and parsed_url.path.startswith('/r/') and '/comments/' in parsed_url.path):
+            return True
     text = BeautifulSoup(html_content, 'html.parser').get_text(" ", strip=True)
     return _is_article(text)
 
