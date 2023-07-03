@@ -102,21 +102,21 @@ class DB:
         return self.session.execute(query, (user_id,))
 
 
-    def search(self, user_id: uuid4, vector: List[float]) -> List[Dict[str, Union[str, datetime, List[str]]]]:
+    def search(self, user_id: uuid4, vector: List[float]) -> List[Dict[str, Union[Tuple[str, float], datetime, List[str]]]]:
         query = self.session.prepare(
             f"""
-            SELECT url, title, chunk, toTimestamp(chunk_id) as saved_at 
+            SELECT url, title, chunk, toTimestamp(chunk_id) as saved_at, similarity_dot_product(embedding, ?) as score
             FROM {self.keyspace}.{self.table_chunks} 
             WHERE user_id = ? 
             ORDER BY embedding ANN OF ? LIMIT 10
             """
         )
-        result_set = self.session.execute(query, (user_id, vector))
+        result_set = self.session.execute(query, (vector, user_id, vector))
         url_dict = defaultdict(lambda: {'chunks': [], 'title': None, 'saved_at': None})
 
         for row in result_set:
             if len(url_dict[row.url]['chunks']) < 3:  # only keep the top 3 chunks for each URL
-                url_dict[row.url]['chunks'].append(row.chunk)
+                url_dict[row.url]['chunks'].append((row.chunk, row.score))
                 url_dict[row.url]['title'] = row.title
                 url_dict[row.url]['saved_at'] = row.saved_at
 
