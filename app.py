@@ -38,11 +38,16 @@ def search():
     user_id_str = request.args.get('user_id')
     if not user_id_str:
         return jsonify({"error": "user_id not provided"}), 400
+    saved_before_str = request.args.get('saved_before')
 
-    urls = logic.recent_urls(db, user_id_str)
+    urls, oldest_saved_at = logic.recent_urls(db, user_id_str, saved_before_str)
     form = SearchForm(user_id_str=user_id_str)
-    return render_template('search.html', urls=urls, form=form)
-
+    return render_template('search.html', 
+                           user_id_str=user_id_str,
+                           saved_before_str=saved_before_str,
+                           urls=urls, 
+                           oldest_saved_at=oldest_saved_at, 
+                           form=form)
 
 @app.route('/results', methods=['POST'])
 def results():

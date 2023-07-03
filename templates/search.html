@@ -15,6 +15,12 @@
                 </div>
             </div>
         {% endfor %}
+        {% if urls and oldest_saved_at %}
+        <a href="?user_id={{ user_id_str }}&saved_before={{ oldest_saved_at }}" class="btn btn-primary">Older URLs</a>
+        {% endif %}
+        {% if saved_before_str %}
+        <a href="?user_id={{ user_id_str }}" class="btn btn-primary">Reset to newest</a>
+        {% endif %}
 
         <h1 class="mt-5">Search</h1>
         <form method="POST" action="/results">

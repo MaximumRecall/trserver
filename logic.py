@@ -112,11 +112,16 @@ def save_if_article(db: DB, html_content: str, url: str, user_id_str: str) -> bo
     return True
 
 
-def recent_urls(db: DB, user_id_str: str) -> list[dict[str, str | datetime]]:
-    results = db.recent_urls(UUID(user_id_str))
+def recent_urls(db: DB, user_id_str: str, saved_before_str: str | None) -> tuple[list[dict[str, str | datetime]], datetime]:
+    user_id = UUID(user_id_str)
+    saved_before = datetime.fromisoformat(saved_before_str) if saved_before_str else None
+
+    limit = 10
+    results = db.recent_urls(user_id, saved_before, limit)
+    oldest_saved_at = min(result['saved_at'] for result in results) if results and len(results) == limit else None
     for result in results:
         result['saved_at'] = humanize_datetime(result['saved_at'])
-    return results
+    return results, oldest_saved_at
 
 
 def search(db: DB, user_id_str: str, search_text: str) -> list:

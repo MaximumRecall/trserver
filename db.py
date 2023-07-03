@@ -91,15 +91,30 @@ class DB:
             raise Exception(f"Failed to insert {len(denormalized_chunks)} chunks")
 
 
-    def recent_urls(self, user_id: uuid4) -> List[Dict[str, Union[str, datetime]]]:
+    def recent_urls(self, user_id: uuid4, saved_before: datetime | None, limit: int) -> List[Dict[str, Union[str, datetime]]]:
+        if saved_before:
+            cql = f"""
+                  SELECT url, title, toTimestamp(url_id) as saved_at 
+                  FROM {self.keyspace}.{self.table_urls} 
+                  WHERE user_id = ? AND url_id < minTimeuuid(?)
+                  ORDER BY url_id DESC
+                  LIMIT ?
+                  """
+        else:
+            cql = f"""
+                  SELECT url, title, toTimestamp(url_id) as saved_at 
+                  FROM {self.keyspace}.{self.table_urls} 
+                  WHERE user_id = ? 
+                  ORDER BY url_id DESC
+                  LIMIT ?
+                  """
         query = self.session.prepare(
-            f"""
-            SELECT url, title, toTimestamp(url_id) as saved_at 
-            FROM {self.keyspace}.{self.table_urls} 
-            WHERE user_id = ? LIMIT 10
-            """
+            cql
         )
-        results = self.session.execute(query, (user_id,))
+        if saved_before:
+            results = self.session.execute(query, (user_id, saved_before, limit))
+        else:
+            results = self.session.execute(query, (user_id, limit))
         return [{k: getattr(row, k) for k in ['url', 'title', 'saved_at']} for row in results]
 
 
