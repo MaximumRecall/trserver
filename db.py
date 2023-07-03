@@ -1,8 +1,6 @@
 import time
-from collections import defaultdict
-from datetime import datetime
 from uuid import uuid4, uuid1
-from typing import Any, Dict, List, Tuple, Union
+from typing import Any, Dict, List, Tuple
 from cassandra.cluster import Cluster, ResultSet
 from cassandra.concurrent import execute_concurrent_with_args
 
@@ -58,7 +56,6 @@ class DB:
             """
         )
 
-
     def upsert_chunks(self, user_id: uuid4, url: str, title: str, chunks: List[Tuple[uuid1, str, List[float]]]) -> None:
         st_urls = self.session.prepare(
             f"""
@@ -103,39 +100,13 @@ class DB:
         return self.session.execute(query, (user_id,))
 
 
-    def search(self, user_id: uuid4, vector: List[float]) -> List[Dict[str, Union[str, datetime, List[str]]]]:
-        limit = 10
-        url_dict = defaultdict(lambda: {'chunks': [], 'title': None, 'saved_at': None})
-        chunk_ids = []
-        while len(url_dict) < limit:
-            if chunk_ids:
-                query = self.session.prepare(
-                    f"""
-                    SELECT url, title, chunk, chunk_id
-                    FROM {self.keyspace}.{self.table_chunks} 
-                    WHERE user_id = ? 
-                    AND chunk_id NOT IN ?
-                    ORDER BY embedding ANN OF ? LIMIT 10
-                    """
-                )
-                result_set = self.session.execute(query, (user_id, chunk_ids, vector))
-            else:
-                query = self.session.prepare(
-                    f"""
-                    SELECT url, title, chunk, chunk_id
-                    FROM {self.keyspace}.{self.table_chunks} 
-                    WHERE user_id = ? 
-                    ORDER BY embedding ANN OF ? LIMIT 10
-                    """
-                )
-                result_set = self.session.execute(query, (user_id, vector))
-            if not result_set:  # stop if no more results
-                break
-            for row in result_set:
-                chunk_ids.append(row.chunk_id)  # keep track of the chunk_ids already processed
-                if len(url_dict[row.url]['chunks']) < 3:  # only keep the top 3 chunks for each URL
-                    url_dict[row.url]['chunks'].append(row.chunk)
-                    if url_dict[row.url]['title'] is None:
-                        url_dict[row.url]['title'] = row.title
-                        url_dict[row.url]['saved_at'] = datetime.fromtimestamp(row.chunk_id.time)
-        return [{'url': url, **info} for url, info in url_dict.items()]
+    def search(self, user_id: uuid4, vector: List[float]) -> ResultSet:
+        query = self.session.prepare(
+            f"""
+            SELECT url, title, chunk, toTimestamp(chunk_id) as saved_at 
+            FROM {self.keyspace}.{self.table_chunks} 
+            WHERE user_id = ? 
+            ORDER BY embedding ANN OF ? LIMIT 10
+            """
+        )
+        return self.session.execute(query, (user_id, vector))
