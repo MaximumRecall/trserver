@@ -2,24 +2,33 @@
 <html>
 <head>
     <title>Search Results</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.0/css/bootstrap.min.css">
 </head>
 <body>
-    <form method="POST" action="/results">
-        {{ form.hidden_tag() }}
-        {{ form.search_text.label }} {{ form.search_text() }}
-        <input type="submit" value="Search" />
-    </form>
-    <h1>Search Results</h1>
-    {% for result in results %}
-        <p>
-            <a href="{{ result.url }}">{{ result.title }}</a> ({{ result.saved_at }})
-            <br>
-            <ul>
-            {% for chunk, score in result.chunks %}
-                <li>{{ chunk }} {{ score }}</li>
-            {% endfor %}
-            </ul>
-        </p>
-    {% endfor %}
+    <div class="container">
+        <h1 class="mt-5">Search</h1>
+        <form method="POST" action="/results" class="mb-5">
+            {{ form.hidden_tag() }}
+            <div class="form-group">
+                {{ form.search_text.label(class="form-label") }}
+                {{ form.search_text(class="form-control") }}
+            </div>
+            <input type="submit" value="Search" class="btn btn-primary" />
+        </form>
+
+        <h1>Search Results</h1>
+        {% for result in results %}
+            <div class="card mb-3">
+                <div class="card-body">
+                    <h5 class="card-title"><a href="{{ result.url }}">{{ result.title }}</a> ({{ result.saved_at }})</h5>
+                    <ul class="list-group list-group-flush">
+                    {% for chunk, score in result.chunks %}
+                        <li class="list-group-item">{{ chunk }}: {{ score }}</li>
+                    {% endfor %}
+                    </ul>
+                </div>
+            </div>
+        {% endfor %}
+    </div>
 </body>
 </html>

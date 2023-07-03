@@ -2,21 +2,29 @@
 <html>
 <head>
     <title>Search</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.0/css/bootstrap.min.css">
 </head>
 <body>
-    <h1>Recent URLs</h1>
-    {% for url in urls %}
-        <p>
-            <a href="{{ url.url }}">{{ url.title }}</a><br>
-            Saved at: {{ url.saved_at }}
-        </p>
-    {% endfor %}
+    <div class="container">
+        <h1 class="mt-5">Recent URLs</h1>
+        {% for url in urls %}
+            <div class="card mb-3">
+                <div class="card-body">
+                    <h5 class="card-title"><a href="{{ url.url }}">{{ url.title }}</a></h5>
+                    <p class="card-text">Saved at: {{ url.saved_at }}</p>
+                </div>
+            </div>
+        {% endfor %}
 
-    <h1>Search</h1>
-    <form method="POST" action="/results">
-        {{ form.hidden_tag() }}
-        {{ form.search_text.label }} {{ form.search_text() }}
-        <input type="submit" value="Search" />
-    </form>
+        <h1 class="mt-5">Search</h1>
+        <form method="POST" action="/results">
+            {{ form.hidden_tag() }}
+            <div class="form-group">
+                {{ form.search_text.label(class="form-label") }}
+                {{ form.search_text(class="form-control") }}
+            </div>
+            <input type="submit" value="Search" class="btn btn-primary" />
+        </form>
+    </div>
 </body>
 </html>
