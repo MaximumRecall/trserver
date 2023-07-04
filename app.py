@@ -64,18 +64,21 @@ def results():
 def save_if_article():
     data = request.json
 
-    html_content = data.get('html_content')
     url = data.get('url')
+    title = data.get('title')
+    text_content = data.get('text_content')
     user_id_str = data.get('user_id')
 
-    if not html_content:
-        return jsonify({"error": "html_content not provided"}), 400
     if not url:
         return jsonify({"error": "url not provided"}), 400
+    if not title:
+        return jsonify({"error": "title not provided"}), 400
+    if not text_content:
+        return jsonify({"error": "text_content not provided"}), 400
     if not user_id_str:
         return jsonify({"error": "user_id not provided"}), 400
 
-    result = logic.save_if_article(db, html_content, url, user_id_str)
+    result = logic.save_if_article(db, url, text_content, user_id_str)
 
     return jsonify({"saved": result}), 200
 

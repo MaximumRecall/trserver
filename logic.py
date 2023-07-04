@@ -100,14 +100,11 @@ def _save_article(db: DB, text: str, url: str, title: str, user_id: uuid4) -> No
     db.upsert_chunks(user_id, url, title, chunks)
 
 
-def save_if_article(db: DB, html_content: str, url: str, user_id_str: str) -> bool:
+def save_if_article(db: DB, url: str, title: str, text: str, user_id_str: str) -> bool:
     user_id = UUID(user_id_str)
-    soup = BeautifulSoup(html_content, 'html.parser')
-    text = soup.get_text(" ", strip=True)
     if not _is_article(text):
         return False
 
-    title = soup.title.string.strip() if soup.title else ""
     if len(title) < 15:
         title = summarize(text)
     _save_article(db, text, url, title, user_id)
