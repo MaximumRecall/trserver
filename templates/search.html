@@ -6,6 +6,16 @@
 </head>
 <body>
     <div class="container">
+        <h1 class="mt-5">Search</h1>
+        <form method="POST" action="/results">
+            {{ form.hidden_tag() }}
+            <div class="form-group">
+                {{ form.search_text.label(class="form-label") }}
+                {{ form.search_text(class="form-control") }}
+            </div>
+            <input type="submit" value="Search" class="btn btn-primary" />
+        </form>
+
         <h1 class="mt-5">Recent URLs</h1>
         {% for url in urls %}
             <div class="card mb-3">
@@ -21,16 +31,6 @@
         {% if saved_before_str %}
         <a href="?user_id={{ user_id_str }}" class="btn btn-primary">Reset to newest</a>
         {% endif %}
-
-        <h1 class="mt-5">Search</h1>
-        <form method="POST" action="/results">
-            {{ form.hidden_tag() }}
-            <div class="form-group">
-                {{ form.search_text.label(class="form-label") }}
-                {{ form.search_text(class="form-control") }}
-            </div>
-            <input type="submit" value="Search" class="btn btn-primary" />
-        </form>
     </div>
 </body>
 </html>
