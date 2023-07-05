@@ -1,4 +1,4 @@
-This is the server for Total Recall.
+This is the server for [Total Recall](https://totalrecall.click).
 
 It can run against a local vector-search-enabled Cassandra, or against DataStax Astra.
 
