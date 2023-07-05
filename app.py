@@ -1,28 +1,27 @@
 import os
-import subprocess
 
 from cassandra.cluster import Cluster
 from flask import Flask, request, render_template, jsonify
 
-from .db import DB
 from . import logic
+from .db import DB
 from .forms import SearchForm
 
-from db import DB
-cloud_config = {
-  'secure_connect_bundle': os.path.join(cwd, 'secure-connect-total-recall.zip')
-}
-astra_client_id = os.environ.get('ASTRA_CLIENT_ID')
-if not astra_client_id:
-    raise Exception('ASTRA_CLIENT_ID environment variable not set')
-astra_client_secret = os.environ.get('ASTRA_CLIENT_SECRET')
-if not astra_client_secret:
-    raise Exception('ASTRA_CLIENT_SECRET environment variable not set')
-auth_provider = PlainTextAuthProvider(astra_client_id, astra_client_secret)
-cluster = Cluster(cloud=cloud_config, auth_provider=auth_provider)
-db = DB(cluster)
+# cloud_config = {
+#   'secure_connect_bundle': os.path.join(cwd, 'secure-connect-total-recall.zip')
+# }
+# astra_client_id = os.environ.get('ASTRA_CLIENT_ID')
+# if not astra_client_id:
+#     raise Exception('ASTRA_CLIENT_ID environment variable not set')
+# astra_client_secret = os.environ.get('ASTRA_CLIENT_SECRET')
+# if not astra_client_secret:
+#     raise Exception('ASTRA_CLIENT_SECRET environment variable not set')
+# auth_provider = PlainTextAuthProvider(astra_client_id, astra_client_secret)
+# cluster = Cluster(cloud=cloud_config, auth_provider=auth_provider)
+# db = DB(cluster)
 # running locally
-# db = DB(Cluster())
+db = DB(Cluster())
+
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.urandom(32)
@@ -59,9 +58,8 @@ def results():
     return jsonify({"error": "Invalid form data"}), 400
 
 
-
-@app.route('/save_if_article', methods=['POST'])
-def save_if_article():
+@app.route('/save_if_new', methods=['POST'])
+def save_if_new():
     data = request.json
 
     url = data.get('url')
@@ -78,7 +76,7 @@ def save_if_article():
     if not user_id_str:
         return jsonify({"error": "user_id not provided"}), 400
 
-    result = logic.save_if_article(db, url, text_content, user_id_str)
+    result = logic.save_if_new(db, url, title, text_content, user_id_str)
 
     return jsonify({"saved": result}), 200
 

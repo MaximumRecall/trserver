@@ -1,12 +1,13 @@
 import os
-from datetime import datetime
 from urllib.parse import urlparse
+from datetime import datetime
 from uuid import uuid1, UUID, uuid4
 
 import nltk
+import numpy as np
 import openai
 import tiktoken
-from bs4 import BeautifulSoup
+from sklearn.feature_extraction.text import CountVectorizer
 from sentence_transformers import SentenceTransformer
 
 from .db import DB
@@ -52,62 +53,37 @@ def summarize(text: str) -> str:
     return response.choices[0].message.content
 
 
-article_prompt = ("Given an excerpt of a webpage's text, identify if it is content-focused or not."
-                  "A content-focused webpage primarily aims to provide facts, data, knowledge, or insights "
-                  "on a specific topic or variety of topics. In contrast, non-informational webpages might be "
-                  "primarily intended for navigational, overview, or entertainment purposes. "
-                  "Consider the following description and categorize it as Content, Other, or Unsure.")
-def _is_article(text: str) -> bool:
-    truncated = truncate_to(text, 3900)
-    response = openai.ChatCompletion.create(
-        model="gpt-3.5-turbo",
-        messages=[
-            {"role": "system", "content": article_prompt},
-            {"role": "user", "content": truncated},
-        ]
-    )
-
-    def answer(r):
-        return r.choices[0].message.content.lower()
-
-    if answer(response) == "unsure":
-        if len(truncated) < 0.6 * len(text):
-            # if we had to truncate the content significantly, try again with more context
-            response = openai.ChatCompletion.create(
-                model="gpt-3.5-turbo-16k",
-                messages=[
-                    {"role": "system", "content": article_prompt},
-                    {"role": "user", "content": truncate_to(text, 15900)},
-                ]
-            )
-        else:
-            # try again with more capable model
-            response = openai.ChatCompletion.create(
-                model="gpt-4",
-                messages=[
-                    {"role": "system", "content": article_prompt},
-                    {"role": "user", "content": text},
-                ]
-            )
-
-    return answer(response) == "content"
-
-
-def _save_article(db: DB, text: str, url: str, title: str, user_id: uuid4) -> None:
+def _save_article(db: DB, path: str, text: str, url: str, title: str, user_id: uuid4) -> None:
     sentences = nltk.sent_tokenize(text)
     vectors = encoder.encode(sentences, normalize_embeddings=True)
     chunks = [(uuid1(), sentence, v) for sentence, v in zip(sentences, vectors)]
-    db.upsert_chunks(user_id, url, title, chunks)
+    db.upsert_chunks(user_id, path, url, title, text, chunks)
 
 
-def save_if_article(db: DB, url: str, title: str, text: str, user_id_str: str) -> bool:
+def _is_different(text, last_version):
+    """True if text is at least 5% different from last_version"""
+    if last_version is None:
+        return True
+
+    vectorizer = CountVectorizer().fit_transform([text, last_version])
+    vectors = vectorizer.toarray()
+    normalized = vectors / np.linalg.norm(vectors, axis=1, keepdims=True)
+    dot = np.dot(normalized[0], normalized[1])
+    print("difference between this and previous version is " + str(dot))
+    return dot < 0.95
+
+
+def save_if_new(db: DB, url: str, title: str, text: str, user_id_str: str) -> bool:
     user_id = UUID(user_id_str)
-    if not _is_article(text):
+    parsed = urlparse(url)
+    path = parsed.hostname + parsed.path
+    last_version = db.last_version(user_id, path)
+    if not _is_different(text, last_version):
         return False
 
     if len(title) < 15:
         title = summarize(text)
-    _save_article(db, text, url, title, user_id)
+    _save_article(db, path, text, url, title, user_id)
     return True
 
 
@@ -129,14 +105,3 @@ def search(db: DB, user_id_str: str, search_text: str) -> list:
     for result in results:
         result['saved_at'] = humanize_datetime(result['saved_at'])
     return results
-
-# for testing
-def is_article(html_content: str, url: str = None) -> bool:
-    text = BeautifulSoup(html_content, 'html.parser').get_text(" ", strip=True)
-    return _is_article(text)
-
-def save_article(db: DB, html_content: str, url: str, user_id: uuid4) -> None:
-    soup = BeautifulSoup(html_content, 'html.parser')
-    text = soup.get_text(" ", strip=True)
-    title = soup.title.string.strip()
-    _save_article(db, text, url, title, user_id)

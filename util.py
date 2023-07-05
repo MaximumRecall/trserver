@@ -1,5 +1,7 @@
-from dateutil.relativedelta import relativedelta
 from datetime import datetime
+
+from dateutil.relativedelta import relativedelta
+
 
 def humanize_datetime(dt: datetime) -> str:
     now = datetime.now()
