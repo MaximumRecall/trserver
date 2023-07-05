@@ -8,7 +8,7 @@ from .forms import SearchForm
 
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = os.urandom(32)
+app.config['SECRET_KEY'] = os.environ.get('WTF_SECRET')
 
 
 @app.route("/")
