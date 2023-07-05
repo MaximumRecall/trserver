@@ -9,6 +9,7 @@ To run locally,
 Environment variables that must be set:
 `OPENAI_KEY`
 
-If running against Astra, also:
+The service will connect to local Cassandra by default (see config.py); to connect to Astra instead, 
+specify the following environment variables:
 `ASTRA_CLIENT_ID`
 `ASTRA_CLIENT_SECRET`

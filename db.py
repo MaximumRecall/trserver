@@ -17,13 +17,14 @@ class DB:
         self.cluster = cluster
         self.session = self.cluster.connect()
 
-        # Keyspace
-        self.session.execute(
-            f"""
-            CREATE KEYSPACE IF NOT EXISTS {self.keyspace}
-            WITH REPLICATION = {{ 'class': 'SimpleStrategy', 'replication_factor': 1 }}
-            """
-        )
+        # Keyspace (don't try to create unless it's a local cluster)
+        if self.cluster.contact_points == ['127.0.0.1']:
+            self.session.execute(
+                f"""
+                CREATE KEYSPACE IF NOT EXISTS {self.keyspace}
+                WITH REPLICATION = {{ 'class': 'SimpleStrategy', 'replication_factor': 1 }}
+                """
+            )
 
         # URLs table
         self.session.execute(
