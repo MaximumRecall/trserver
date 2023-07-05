@@ -54,12 +54,12 @@ class DB:
             f"""
             CREATE TABLE IF NOT EXISTS {self.keyspace}.{self.table_chunks} (
             user_id uuid,
-            chunk_id timeuuid,
+            url_id timeuuid,
             full_url text,
             title text,
             chunk text,
             embedding vector<float, 384>,
-            PRIMARY KEY (user_id, chunk_id));
+            PRIMARY KEY (user_id, chunk));
             """
         )
         # Embedding index
@@ -90,7 +90,7 @@ class DB:
                       full_url: str,
                       title: str,
                       text_content: str,
-                      chunks: List[Tuple[uuid1, str, List[float]]]) -> None:
+                      chunks: List[Tuple[str, List[float]]]) -> None:
         st_urls = self.session.prepare(
             f"""
             INSERT INTO {self.keyspace}.{self.table_urls}
@@ -113,12 +113,12 @@ class DB:
         st_chunks = self.session.prepare(
             f"""
             INSERT INTO {self.keyspace}.{self.table_chunks}
-            (user_id, chunk_id, full_url, title, chunk, embedding)
+            (user_id, url_id, full_url, title, chunk, embedding)
             VALUES (?, ?, ?, ?, ?, ?)
             """
         )
-        denormalized_chunks = [(user_id, chunk_id, full_url, title, chunk, embedding)
-                               for chunk_id, chunk, embedding in chunks]
+        denormalized_chunks = [(user_id, url_uuid, full_url, title, chunk, embedding)
+                               for chunk, embedding in chunks]
         backoff = 0.5
         while denormalized_chunks and backoff < 60:
             results = execute_concurrent_with_args(self.session, st_chunks, denormalized_chunks,
@@ -161,7 +161,7 @@ class DB:
     def search(self, user_id: uuid4, vector: List[float]) -> List[Dict[str, Union[Tuple[str, float], datetime, List[str]]]]:
         query = self.session.prepare(
             f"""
-            SELECT full_url, title, chunk, toTimestamp(chunk_id) as saved_at, similarity_dot_product(embedding, ?) as score
+            SELECT full_url, title, chunk, toTimestamp(url_id) as saved_at, similarity_dot_product(embedding, ?) as score
             FROM {self.keyspace}.{self.table_chunks} 
             WHERE user_id = ? 
             ORDER BY embedding ANN OF ? LIMIT 10
