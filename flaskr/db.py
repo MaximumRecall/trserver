@@ -59,7 +59,7 @@ class DB:
             full_url text,
             title text,
             chunk text,
-            embedding vector<float, 384>,
+            embedding vector<float, 1576>,
             PRIMARY KEY (user_id, chunk));
             """
         )

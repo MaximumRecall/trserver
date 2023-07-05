@@ -7,7 +7,6 @@ import nltk
 import numpy as np
 import openai
 import tiktoken
-from sentence_transformers import SentenceTransformer
 from sklearn.feature_extraction.text import CountVectorizer
 
 from .db import DB
@@ -18,7 +17,16 @@ openai.api_key = os.environ.get('OPENAI_KEY')
 if not openai.api_key:
     raise Exception('OPENAI_KEY environment variable not set')
 tokenizer = tiktoken.encoding_for_model('gpt-3.5-turbo')
-encoder = SentenceTransformer('multi-qa-MiniLM-L6-dot-v1')
+
+
+class OpenAiEncoder:
+    def encode(self, inputs: list[str], normalize_embeddings=True) -> list[list[float]]:
+        response = openai.Embedding.create(
+            input=inputs,
+            engine="text-embedding-ada-002"
+        )
+        return response.data
+encoder = OpenAiEncoder()
 
 
 def truncate_to(source, max_tokens):
