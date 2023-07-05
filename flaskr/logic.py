@@ -21,11 +21,15 @@ tokenizer = tiktoken.encoding_for_model('gpt-3.5-turbo')
 
 class OpenAiEncoder:
     def encode(self, inputs: list[str], normalize_embeddings=True) -> list[list[float]]:
+        print(f"Requesting {str(len(inputs))} embeddings from openai")
+        start = datetime.now()
         response = openai.Embedding.create(
             input=inputs,
             engine="text-embedding-ada-002"
         )
-        return response.data
+        end = datetime.now()
+        print(f"Received {str(len(inputs))} embeddings from openai in {str(end - start)}")
+        return [data.embedding for data in response.data]
 encoder = OpenAiEncoder()
 
 
