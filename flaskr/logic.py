@@ -1,14 +1,14 @@
 import os
-from urllib.parse import urlparse
 from datetime import datetime
-from uuid import uuid1, UUID, uuid4
+from urllib.parse import urlparse
+from uuid import UUID, uuid4
 
 import nltk
 import numpy as np
 import openai
 import tiktoken
-from sklearn.feature_extraction.text import CountVectorizer
 from sentence_transformers import SentenceTransformer
+from sklearn.feature_extraction.text import CountVectorizer
 
 from .db import DB
 from .util import humanize_datetime
