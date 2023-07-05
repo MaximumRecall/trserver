@@ -54,9 +54,11 @@ def summarize(text: str) -> str:
 
 
 def _save_article(db: DB, path: str, text: str, url: str, title: str, user_id: uuid4) -> None:
-    sentences = nltk.sent_tokenize(text)
-    vectors = encoder.encode(sentences, normalize_embeddings=True)
-    chunks = [(uuid1(), sentence, v) for sentence, v in zip(sentences, vectors)]
+    lines = [line for line in text.splitlines() if line]
+    sentences = [nltk.sent_tokenize(line) for line in lines]  # list of lists of sentences
+    flattened = [sentence for sublist in sentences for sentence in sublist]  # flatten
+    vectors = encoder.encode(flattened, normalize_embeddings=True)
+    chunks = [(uuid1(), sentence, v) for sentence, v in zip(flattened, vectors)]
     db.upsert_chunks(user_id, path, url, title, text, chunks)
 
 
