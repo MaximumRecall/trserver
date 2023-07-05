@@ -4,7 +4,7 @@ It can run against a local vector-search-enabled Cassandra, or against DataStax 
 
 To run locally, 
 
-`$ flask run --debug --host=0.0.0.0`
+`$ flask --app flaskr.app run --debug --host=0.0.0.0`
 
 Environment variables that must be set:
 `OPENAI_KEY`
