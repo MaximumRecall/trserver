@@ -49,10 +49,12 @@ def truncate_to(source, max_tokens):
 
 
 summarize_prompt = ("You are a helpful assistant who will give the subject of the provided web page content in a single sentence. "
-                    "Do not begin your response with 'The web page', or 'The subject is', just give the subject with no extra context. "
+                    "Do not begin your response with any prefix."
+                    "Give the subject in a form appropriate for an article or book title with no extra preamble or context."
                     "Examples of good responses: "
                     "The significance of German immigrants in early Texas history, "
-                    "The successes and shortcomings of persistent collections in server-side Java development.")
+                    "The successes and shortcomings of persistent collections in server-side Java development, "
+                    "A personal account of the benefits of intermittent fasting.")
 def summarize(text: str) -> str:
     truncated = truncate_to(text, 3900)
     response = openai.ChatCompletion.create(
