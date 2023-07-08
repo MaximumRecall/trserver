@@ -6,8 +6,11 @@ from uuid import UUID, uuid4
 import nltk
 import numpy as np
 import openai
-import tiktoken
 from sklearn.feature_extraction.text import CountVectorizer
+import tiktoken
+import torch.nn.functional as F
+from torch import Tensor
+from transformers import AutoTokenizer, AutoModel
 
 from .db import DB
 from .util import humanize_datetime
@@ -19,18 +22,22 @@ if not openai.api_key:
 tokenizer = tiktoken.encoding_for_model('gpt-3.5-turbo')
 
 
-class OpenAiEncoder:
+class E5Encoder:
+    def __init__(self):
+        self.tokenizer = AutoTokenizer.from_pretrained('intfloat/multilingual-e5-small')
+        self.model = AutoModel.from_pretrained('intfloat/multilingual-e5-small')
+
+    def average_pool(last_hidden_states: Tensor,
+                     attention_mask: Tensor) -> Tensor:
+        last_hidden = last_hidden_states.masked_fill(~attention_mask[..., None].bool(), 0.0)
+        return last_hidden.sum(dim=1) / attention_mask.sum(dim=1)[..., None]
+
     def encode(self, inputs: list[str], normalize_embeddings=True) -> list[list[float]]:
-        print(f"Requesting {str(len(inputs))} embeddings from openai")
-        start = datetime.now()
-        response = openai.Embedding.create(
-            input=inputs,
-            engine="text-embedding-ada-002"
-        )
-        end = datetime.now()
-        print(f"Received {str(len(inputs))} embeddings from openai in {str(end - start)}")
-        return [data.embedding for data in response.data]
-encoder = OpenAiEncoder()
+        batch_dict = self.tokenizer(input_texts, max_length=512, padding=True, truncation=True, return_tensors='pt')
+        outputs = self.model(**batch_dict)
+        embeddings = self.average_pool(outputs.last_hidden_state, batch_dict['attention_mask'])
+        return F.normalize(embeddings, p=2, dim=1)
+encoder = E5Encoder()
 
 
 def truncate_to(source, max_tokens):
