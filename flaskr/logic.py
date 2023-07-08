@@ -93,7 +93,7 @@ def save_if_new(db: DB, url: str, title: str, text: str, user_id_str: str) -> bo
     return True
 
 
-def recent_urls(db: DB, user_id_str: str, saved_before_str: Optional[str]) -> tuple[list[dict[str, Optional[str]]], datetime]:
+def recent_urls(db: DB, user_id_str: str, saved_before_str: Optional[str] = None) -> tuple[list[dict[str, Optional[str]]], datetime]:
     user_id = UUID(user_id_str)
     saved_before = datetime.fromisoformat(saved_before_str) if saved_before_str else None
 
