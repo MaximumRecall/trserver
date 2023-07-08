@@ -7,7 +7,7 @@
 <body>
     <div class="container">
         <h1 class="mt-5">Search</h1>
-        <form method="POST" action="/results" class="mb-5">
+        <form method="POST" action="{{ url_for('results') }}">
             {{ form.hidden_tag() }}
             <div class="form-group">
                 {{ form.search_text.label(class="form-label") }}
