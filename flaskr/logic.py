@@ -18,12 +18,12 @@ from .util import humanize_datetime
 openai.api_key = os.environ.get('OPENAI_KEY')
 if not openai.api_key:
     raise Exception('OPENAI_KEY environment variable not set')
-tokenizer = tiktoken.encoding_for_model('gpt-3.5-turbo')
-encoder = SentenceTransformer('intfloat/multilingual-e5-small')
+_tokenizer = tiktoken.encoding_for_model('gpt-3.5-turbo')
+_encoder = SentenceTransformer('intfloat/multilingual-e5-small')
 
 
 def truncate_to(source, max_tokens):
-    tokens = list(tokenizer.encode(source))
+    tokens = list(_tokenizer.encode(source))
     truncated_tokens = []
     total_tokens = 0
 
@@ -33,23 +33,23 @@ def truncate_to(source, max_tokens):
             break
         truncated_tokens.append(token)
 
-    truncated_s = tokenizer.decode(truncated_tokens)
+    truncated_s = _tokenizer.decode(truncated_tokens)
     return truncated_s
 
 
-summarize_prompt = ("You are a helpful assistant who will give the subject of the provided web page content in a single sentence. "
-                    "Do not begin your response with any prefix."
-                    "Give the subject in a form appropriate for an article or book title with no extra preamble or context."
-                    "Examples of good responses: "
-                    "The significance of German immigrants in early Texas history, "
-                    "The successes and shortcomings of persistent collections in server-side Java development, "
-                    "A personal account of the benefits of intermittent fasting.")
+_summarize_prompt = ("You are a helpful assistant who will give the subject of the provided web page content in a single sentence. "
+                     "Do not begin your response with any prefix."
+                     "Give the subject in a form appropriate for an article or book title with no extra preamble or context."
+                     "Examples of good responses: "
+                     "The significance of German immigrants in early Texas history, "
+                     "The successes and shortcomings of persistent collections in server-side Java development, "
+                     "A personal account of the benefits of intermittent fasting.")
 def summarize(text: str) -> str:
     truncated = truncate_to(text, 3900)
     response = openai.ChatCompletion.create(
         model="gpt-3.5-turbo",
         messages=[
-            {"role": "system", "content": summarize_prompt},
+            {"role": "system", "content": _summarize_prompt},
             {"role": "user", "content": truncated},
         ]
     )
@@ -62,7 +62,7 @@ def _save_article(db: DB, path: str, text: str, url: str, title: str, user_id: u
     lines = [line for line in text.splitlines() if any(c.isalpha() for c in line)]
     sentences = [nltk.sent_tokenize(line) for line in lines]  # list of lists of sentences
     flattened = [title] + [sentence for sublist in sentences for sentence in sublist]  # flatten
-    vectors = encoder.encode(flattened, normalize_embeddings=True)
+    vectors = _encoder.encode(flattened, normalize_embeddings=True)
     db.upsert_chunks(user_id, path, url, title, text, zip(flattened, vectors))
 
 
@@ -106,7 +106,7 @@ def recent_urls(db: DB, user_id_str: str, saved_before_str: Optional[str]) -> tu
 
 
 def search(db: DB, user_id_str: str, search_text: str) -> list:
-    vector = encoder.encode([search_text], normalize_embeddings=True)[0]
+    vector = _encoder.encode([search_text], normalize_embeddings=True)[0]
     results = db.search(UUID(user_id_str), vector)
     for result in results:
         result['saved_at'] = humanize_datetime(result['saved_at'])
