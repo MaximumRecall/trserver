@@ -1,7 +1,7 @@
 import time
 from collections import defaultdict
 from datetime import datetime
-from typing import Dict, List, Tuple, Union, Any
+from typing import Dict, List, Tuple, Union, Any, Optional
 from uuid import uuid4, uuid1
 
 from cassandra.cluster import Cluster
@@ -73,7 +73,7 @@ class DB:
             """
         )
 
-    def last_version(self, user_id: uuid4, path: str) -> str | None:
+    def last_version(self, user_id: uuid4, path: str) -> Optional[str]:
         st = self.session.prepare(
             f"""
             SELECT text_content
@@ -132,7 +132,7 @@ class DB:
             raise Exception(f"Failed to insert {len(denormalized_chunks)} chunks")
 
 
-    def recent_urls(self, user_id: uuid4, saved_before: datetime | None, limit: int) -> List[Dict[str, Union[str, datetime]]]:
+    def recent_urls(self, user_id: uuid4, saved_before: Optional[datetime], limit: int) -> List[Dict[str, Union[str, datetime]]]:
         if saved_before:
             cql = f"""
                   SELECT full_url, title, toTimestamp(url_id) as saved_at 
