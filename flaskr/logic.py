@@ -28,14 +28,14 @@ class E5Encoder:
         self.tokenizer = AutoTokenizer.from_pretrained('intfloat/multilingual-e5-small')
         self.model = AutoModel.from_pretrained('intfloat/multilingual-e5-small')
 
-    def average_pool(self, last_hidden_states: Tensor, attention_mask: Tensor) -> Tensor:
+    def _average_pool(self, last_hidden_states: Tensor, attention_mask: Tensor) -> Tensor:
         last_hidden = last_hidden_states.masked_fill(~attention_mask[..., None].bool(), 0.0)
         return last_hidden.sum(dim=1) / attention_mask.sum(dim=1)[..., None]
 
     def encode(self, inputs: List[str], normalize_embeddings=True) -> List[List[float]]:
         batch_dict = self.tokenizer(inputs, max_length=512, padding=True, truncation=True, return_tensors='pt')
         outputs = self.model(**batch_dict)
-        embeddings = self.average_pool(outputs.last_hidden_state, batch_dict['attention_mask'])
+        embeddings = self._average_pool(outputs.last_hidden_state, batch_dict['attention_mask'])
 
         if normalize_embeddings:
             embeddings = F.normalize(embeddings, p=2, dim=1)
@@ -102,6 +102,20 @@ def _is_different(text, last_version):
     return dot < 0.95
 
 
+_format_prompt = ("You are a helpful assistant who will reformat raw text as html. "
+                  "Add paragraphing and headings where appropriate. "
+                  "Use bootstrap CSS classes.")
+def _ai_format(text_content):
+    response = openai.ChatCompletion.create(
+        model="gpt-3.5-turbo",
+        messages=[
+            {"role": "system", "content": _format_prompt},
+            {"role": "user", "content": text_content},
+        ]
+    )
+    return response.choices[0].message.content
+
+
 def save_if_new(db: DB, url: str, title: str, text: str, user_id_str: str) -> bool:
     user_id = UUID(user_id_str)
     parsed = urlparse(url)
@@ -124,7 +138,8 @@ def recent_urls(db: DB, user_id_str: str, saved_before_str: Optional[str] = None
     results = db.recent_urls(user_id, saved_before, limit)
     oldest_saved_at = min(result['saved_at'] for result in results) if results and len(results) == limit else None
     for result in results:
-        result['saved_at'] = humanize_datetime(result['saved_at'])
+        result['saved_at_human'] = humanize_datetime(result['saved_at'])
+    print('saved urls are ' + str(results))
     return results, oldest_saved_at
 
 
@@ -134,3 +149,15 @@ def search(db: DB, user_id_str: str, search_text: str) -> list:
     for result in results:
         result['saved_at'] = humanize_datetime(result['saved_at'])
     return results
+
+
+def load_snapshot(db: DB, user_id_str: str, url: str, saved_at_str: str) -> tuple[str, str]:
+    user_id = UUID(user_id_str)
+    saved_at = datetime.fromisoformat(saved_at_str)
+    parsed = urlparse(url)
+    path = parsed.hostname + parsed.path
+    url_id, title, text_content, formatted_content = db.load_snapshot(user_id, url, path, saved_at)
+    if not formatted_content:
+        formatted_content = _ai_format(text_content)
+        db.save_formatting(user_id, url_id, path, formatted_content)
+    return title, formatted_content

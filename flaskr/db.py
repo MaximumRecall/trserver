@@ -8,6 +8,13 @@ from cassandra.cluster import Cluster
 from cassandra.concurrent import execute_concurrent_with_args
 
 
+# data model:
+# we have urls, paths, and chunks.
+# the url table records the full url.  Every time we save a page, we save a new row here.
+# the paths table records url hostname and path.  Before saving a page, we check the most
+# recent version of the page in the paths table.  If it's the same, we don't save the page.
+# This allows us to accommodate urls that only differ by query string, without saving
+# multiple copies of the same page.
 class DB:
     def __init__(self, cluster: Cluster) -> None:
         self.keyspace = "total_recall"
@@ -37,6 +44,13 @@ class DB:
             PRIMARY KEY (user_id, url_id));
             """
         )
+        url_index_name = f"{self.table_urls}_full_url_idx"
+        self.session.execute(
+            f"""
+            CREATE CUSTOM INDEX IF NOT EXISTS {url_index_name} ON {self.keyspace}.{self.table_urls} (full_url)
+            USING 'org.apache.cassandra.index.sai.StorageAttachedIndex'
+            """
+        )
 
         # Paths table
         self.session.execute(
@@ -46,6 +60,7 @@ class DB:
             path text,
             url_id timeuuid,
             text_content text,
+            formatted_content text,
             PRIMARY KEY ((user_id, path), url_id))
             """
         )
@@ -179,3 +194,35 @@ class DB:
 
         # Convert dictionary to list
         return [{'full_url': url, **info} for url, info in url_dict.items()]
+
+    def load_snapshot(self, user_id: uuid4, url: str, path: str, saved_at: datetime) -> tuple[uuid1, str, str, str]:
+        query = self.session.prepare(
+            f"""
+            SELECT url_id, title FROM {self.keyspace}.{self.table_urls} 
+            WHERE user_id = ? AND full_url = ? AND url_id <= maxTimeuuid(?)
+            """
+        )
+        # sort the results because we can't do it in CQL
+        rows = self.session.execute(query, (user_id, url, saved_at)).all()
+        rows.sort(key=lambda row: row.url_id, reverse=True)
+        url_id, title = rows[0]
+
+        query = self.session.prepare(
+            f"""
+            SELECT text_content, formatted_content
+            FROM {self.keyspace}.{self.table_paths} 
+            WHERE user_id = ? AND url_id = ? AND path = ?
+            """
+        )
+        row = self.session.execute(query, (user_id, url_id, path)).one()
+        return url_id, title, row.text_content, row.formatted_content
+
+    def save_formatting(self, user_id: uuid4, url_id: uuid1, path: str, formatted_content: str) -> None:
+        request = self.session.prepare(
+            f"""
+            UPDATE {self.keyspace}.{self.table_paths}
+            SET formatted_content = ?
+            WHERE user_id = ? AND url_id = ? AND path = ?
+            """
+        )
+        self.session.execute(request, (formatted_content, user_id, url_id, path))

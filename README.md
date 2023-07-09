@@ -7,9 +7,10 @@ To run locally,
 `$ flask --app flaskr.app run --debug --host=0.0.0.0`
 
 Environment variables that must be set:
-`OPENAI_KEY`
+- `OPENAI_KEY`
+- `WTF_SECRET` (a random string for Flask's CSRF prevention)
 
 The service will connect to local Cassandra by default (see config.py); to connect to Astra instead, 
 specify the following environment variables:
-`ASTRA_CLIENT_ID`
-`ASTRA_CLIENT_SECRET`
+- `ASTRA_CLIENT_ID`
+- `ASTRA_CLIENT_SECRET`

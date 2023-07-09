@@ -1,0 +1,14 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Search</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.0/css/bootstrap.min.css">
+</head>
+<body>
+    <div class="container">
+        <p>Reformatted snapshot of <a href="{{ url }}">{{ title }}</a>
+        Taken at {{ saved_at_str }}</p>
+    </div>
+    {{ formatted_content | safe }}
+</body>
+</html>

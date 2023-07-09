@@ -65,5 +65,16 @@ def save_if_new():
     return jsonify({"saved": result}), 200
 
 
+@app.route('/snapshot/<user_id_str>/<path:url>/<saved_at_str>/', methods=['GET'])
+def snapshot(user_id_str, url, saved_at_str):
+    title, formatted_content = logic.load_snapshot(db, user_id_str, url, saved_at_str)
+    return render_template('snapshot.html',
+                           user_id_str=user_id_str,
+                           saved_at_str=saved_at_str,
+                           url=url,
+                           title=title,
+                           formatted_content=formatted_content)
+
+
 if __name__ == "__main__":
     app.run(debug=True)
