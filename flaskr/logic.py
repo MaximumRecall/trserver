@@ -80,11 +80,11 @@ def summarize(text: str) -> str:
 
 
 def _save_article(db: DB, path: str, text: str, url: str, title: str, user_id: uuid4) -> None:
-    # require the line contain an alphabetical character
+    # require that sentences contain an alphabetical character
     # (so that it doesn't match lines that are just a bunch of punctuation)
-    lines = [line for line in text.splitlines() if any(c.isalpha() for c in line)]
-    sentences = [nltk.sent_tokenize(line) for line in lines]  # list of lists of sentences
-    flattened = [title] + [sentence for sublist in sentences for sentence in sublist]  # flatten
+    sentences = [nltk.sent_tokenize(text)]
+    flattened = [title] + [sentence.strip() for sentence in sentences
+                           if any(c.isalpha() for c in sentence)]
     vectors = _encoder.encode(flattened, normalize_embeddings=True)
     db.upsert_chunks(user_id, path, url, title, text, zip(flattened, vectors))
 
@@ -105,15 +105,44 @@ def _is_different(text, last_version):
 _format_prompt = ("You are a helpful assistant who will reformat raw text as html. "
                   "Add paragraphing and headings where appropriate. "
                   "Use bootstrap CSS classes.")
+def _group_sentences_by_tokens(sentences, max_tokens):
+    grouped_sentences = []
+    current_group = []
+    current_token_count = 0
+
+    # Group sentences in chunks of max_tokens
+    for sentence in sentences:
+        token_count = len(list(_tokenizer.encode(sentence)))
+        if current_token_count + token_count <= max_tokens:
+            current_group.append(sentence)
+            current_token_count += token_count
+        else:
+            grouped_sentences.append(current_group)
+            current_group = [sentence]
+            current_token_count = token_count
+
+    # Add the last group if it's not empty
+    if current_group:
+        grouped_sentences.append(current_group)
+
+    return grouped_sentences
 def _ai_format(text_content):
-    response = openai.ChatCompletion.create(
-        model="gpt-3.5-turbo",
-        messages=[
-            {"role": "system", "content": _format_prompt},
-            {"role": "user", "content": text_content},
-        ]
-    )
-    return response.choices[0].message.content
+    sentences = [sentence.strip() for sentence in nltk.sent_tokenize(text_content)]
+    sentence_groups = _group_sentences_by_tokens(sentences, 6000)
+
+    responses = []
+    for group in sentence_groups:
+        group_text = ' '.join(group)
+        response = openai.ChatCompletion.create(
+            model="gpt-3.5-turbo-16k",
+            messages=[
+                {"role": "system", "content": _format_prompt},
+                {"role": "user", "content": group_text},
+            ]
+        )
+        responses.append(response.choices[0].message.content)
+
+    return ' '.join(responses)
 
 
 def save_if_new(db: DB, url: str, title: str, text: str, user_id_str: str) -> bool:
