@@ -87,6 +87,15 @@ class DB:
             WITH OPTIONS = {{ 'similarity_function': 'dot_product' }}
             """
         )
+        # Chunk text index
+        chunk_text_index_name = f"{self.table_chunks}_chunk_idx"
+        self.session.execute(
+            f"""
+            CREATE CUSTOM INDEX IF NOT EXISTS {chunk_text_index_name} ON {self.keyspace}.{self.table_chunks} (chunk)
+            USING 'org.apache.cassandra.index.sai.StorageAttachedIndex'
+            WITH OPTIONS = {{ 'index_analyzer': '[{{"tokenizer": "standard"}}, {{"filter": "lowercase" }}]' }}
+            """
+        )
 
     def last_version(self, user_id: uuid4, path: str) -> Optional[str]:
         st = self.session.prepare(
@@ -174,16 +183,33 @@ class DB:
         return [{k: getattr(row, k) for k in ['full_url', 'title', 'saved_at']} for row in results]
 
 
-    def search(self, user_id: uuid4, vector: List[float]) -> List[Dict[str, Union[Tuple[str, float], datetime, List[str]]]]:
-        query = self.session.prepare(
-            f"""
-            SELECT full_url, title, chunk, toTimestamp(url_id) as saved_at, similarity_dot_product(embedding, ?) as score
-            FROM {self.keyspace}.{self.table_chunks} 
-            WHERE user_id = ? 
-            ORDER BY embedding ANN OF ? LIMIT 10
-            """
-        )
-        result_set = self.session.execute(query, (vector, user_id, vector))
+    def search(self, user_id: uuid4, strings: List[str], vector: List[float]) -> List[Dict[str, Union[Tuple[str, float], datetime, List[str]]]]:
+        """
+        Search for the given query vector, restricted to chunks that contain the given strings.
+        """
+        if strings:
+            strings_restriction = ' AND '.join(f"chunk = ?" for _ in strings)
+            query = self.session.prepare(
+                f"""
+                SELECT full_url, title, chunk, toTimestamp(url_id) as saved_at, similarity_dot_product(embedding, ?) as score
+                FROM {self.keyspace}.{self.table_chunks} 
+                WHERE user_id = ? AND {strings_restriction}
+                ORDER BY embedding ANN OF ? LIMIT 10
+                """
+            )
+            print(query)
+            result_set = self.session.execute(query, [vector, user_id] + strings + [vector])
+        else:
+            query = self.session.prepare(
+                f"""
+                SELECT full_url, title, chunk, toTimestamp(url_id) as saved_at, similarity_dot_product(embedding, ?) as score
+                FROM {self.keyspace}.{self.table_chunks} 
+                WHERE user_id = ? 
+                ORDER BY embedding ANN OF ? LIMIT 10
+                """
+            )
+            print(query)
+            result_set = self.session.execute(query, [vector, user_id, vector])
         url_dict = defaultdict(lambda: {'chunks': [], 'title': None, 'saved_at': None})
 
         for row in result_set:
