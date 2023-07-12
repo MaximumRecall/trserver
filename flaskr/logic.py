@@ -1,5 +1,4 @@
 import os
-import re
 from datetime import datetime
 from typing import Optional, List
 from urllib.parse import urlparse
@@ -174,12 +173,8 @@ def recent_urls(db: DB, user_id_str: str, saved_before_str: Optional[str] = None
 
 
 def search(db: DB, user_id_str: str, search_text: str) -> list:
-    # extract any terms in quotes
-    quoted_terms = re.findall(r'"([^"]*)"', search_text)
-    # remove the quotes, but leave the terms
-    search_text = re.sub(r'"([^"]*)"', r'\1', search_text)
     vector = _encoder.encode([search_text], normalize_embeddings=True)[0]
-    results = db.search(UUID(user_id_str), quoted_terms, vector)
+    results = db.search(UUID(user_id_str), vector)
     for result in results:
         result['saved_at'] = humanize_datetime(result['saved_at'])
     return results
