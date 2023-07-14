@@ -74,7 +74,7 @@ class DB:
             full_url text,
             title text,
             chunk text,
-            embedding vector<float, 384>,
+            embedding_e5 vector<float, 384>,
             PRIMARY KEY (user_id, chunk));
             """
         )
@@ -82,7 +82,7 @@ class DB:
         embedding_index_name = f"{self.table_chunks}_embedding_idx"
         self.session.execute(
             f"""
-            CREATE CUSTOM INDEX IF NOT EXISTS {embedding_index_name} ON {self.keyspace}.{self.table_chunks} (embedding)
+            CREATE CUSTOM INDEX IF NOT EXISTS {embedding_index_name} ON {self.keyspace}.{self.table_chunks} (embedding_e5)
             USING 'org.apache.cassandra.index.sai.StorageAttachedIndex'
             WITH OPTIONS = {{ 'similarity_function': 'dot_product' }}
             """
@@ -129,7 +129,7 @@ class DB:
         st_chunks = self.session.prepare(
             f"""
             INSERT INTO {self.keyspace}.{self.table_chunks}
-            (user_id, url_id, full_url, title, chunk, embedding)
+            (user_id, url_id, full_url, title, chunk, embedding_e5)
             VALUES (?, ?, ?, ?, ?, ?)
             """
         )
@@ -177,10 +177,10 @@ class DB:
     def search(self, user_id: uuid4, vector: List[float]) -> List[Dict[str, Union[Tuple[str, float], datetime, List[str]]]]:
         query = self.session.prepare(
             f"""
-            SELECT full_url, title, chunk, toTimestamp(url_id) as saved_at, similarity_dot_product(embedding, ?) as score
+            SELECT full_url, title, chunk, toTimestamp(url_id) as saved_at, similarity_dot_product(embedding_e5, ?) as score
             FROM {self.keyspace}.{self.table_chunks} 
             WHERE user_id = ? 
-            ORDER BY embedding ANN OF ? LIMIT 10
+            ORDER BY embedding_e5 ANN OF ? LIMIT 10
             """
         )
         result_set = self.session.execute(query, (vector, user_id, vector))
@@ -226,3 +226,38 @@ class DB:
             """
         )
         self.session.execute(request, (formatted_content, user_id, url_id, path))
+
+    def _get_user_ids(self):
+        return  self.session.execute(f"SELECT user_id FROM {self.keyspace}.{self.table_chunks}").all()
+
+    def upgrade(self, _encoder):
+        # 1. Add new column
+        # self.session.execute(f"""
+        # ALTER TABLE {self.keyspace}.{self.table_chunks}
+        # ADD embedding_e5 vector<float, 384>
+        # """)
+
+        # 2. Compute embeddings for recent chunks
+        select_stmt = self.session.prepare(
+            f"""
+            SELECT chunk 
+            FROM {self.keyspace}.{self.table_chunks}
+            WHERE user_id = ? AND url_id > minTimeuuid(?)
+            ALLOW FILTERING
+            """
+        )
+        update_stmt = self.session.prepare(
+            f"""
+            UPDATE {self.keyspace}.{self.table_chunks}
+            SET embedding_e5 = ?
+            WHERE user_id = ? AND chunk = ?
+            """
+        )
+
+        recent = datetime(2023, 7, 10)
+        for user_id in self._get_user_ids():
+            rows = self.session.execute(select_stmt, (user_id, recent)).all()
+            print(str(len(rows)) + ' rows to update')
+            for row in rows:
+                embedding = _encoder(row.chunk)
+                self.session.execute(update_stmt, (embedding, user_id, row.chunk))
