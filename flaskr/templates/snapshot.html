@@ -1,14 +1,24 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Search</title>
+    <title>Snapshot</title>
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.0/css/bootstrap.min.css">
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            var source = new EventSource("{{ url_for('snapshot', user_id_str=user_id_str, url=url, saved_at_str=saved_at_str) }}");
+            source.onmessage = function (event) {
+                var data = JSON.parse(event.data);
+                document.getElementById("title").textContent = data.title;
+                document.getElementById("formatted_content").innerHTML = data.formatted_content;
+            }
+        });
+    </script>
 </head>
 <body>
     <div class="container">
-        <p>Reformatted snapshot of <a href="{{ url }}">{{ title }}</a>
+        <p>Reformatted snapshot of <a href="#" id="title"></a>
         Taken at {{ saved_at_str }}</p>
     </div>
-    {{ formatted_content | safe }}
+    <div id="formatted_content"></div>
 </body>
 </html>

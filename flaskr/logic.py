@@ -16,7 +16,9 @@ from transformers import AutoTokenizer, AutoModel
 from .db import DB
 from .util import humanize_datetime
 
-# nltk.download('punkt') # needed locally; in heroku this is done in nltk.txt
+
+nltk.download('punkt') # needed locally; in heroku this is done in nltk.txt
+
 openai.api_key = os.environ.get('OPENAI_KEY')
 if not openai.api_key:
     raise Exception('OPENAI_KEY environment variable not set')
@@ -130,7 +132,6 @@ def _ai_format(text_content):
     sentences = [sentence.strip() for sentence in nltk.sent_tokenize(text_content)]
     sentence_groups = _group_sentences_by_tokens(sentences, 6000)
 
-    responses = []
     for group in sentence_groups:
         group_text = ' '.join(group)
         response = openai.ChatCompletion.create(
@@ -138,11 +139,12 @@ def _ai_format(text_content):
             messages=[
                 {"role": "system", "content": _format_prompt},
                 {"role": "user", "content": group_text},
-            ]
+            ],
+            stream=True
         )
-        responses.append(response.choices[0].message.content)
-
-    return ' '.join(responses)
+        for response_piece in response:
+            if response_piece and 'content' in response_piece['choices'][0]['delta']:
+                yield response_piece['choices'][0]['delta']['content']
 
 
 def save_if_new(db: DB, url: str, title: str, text: str, user_id_str: str) -> bool:
@@ -186,7 +188,13 @@ def load_snapshot(db: DB, user_id_str: str, url: str, saved_at_str: str) -> tupl
     parsed = urlparse(url)
     path = parsed.hostname + parsed.path
     url_id, title, text_content, formatted_content = db.load_snapshot(user_id, url, path, saved_at)
+
     if not formatted_content:
-        formatted_content = _ai_format(text_content)
+        formatted_pieces = []
+        for piece in _ai_format(text_content):
+            formatted_pieces.append(piece)
+            yield piece
+        formatted_content = ' '.join(formatted_pieces)
         db.save_formatting(user_id, url_id, path, formatted_content)
-    return title, formatted_content
+    else:
+        yield formatted_content
