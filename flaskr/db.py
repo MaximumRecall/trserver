@@ -229,35 +229,3 @@ class DB:
 
     def _get_user_ids(self):
         return  self.session.execute(f"SELECT user_id FROM {self.keyspace}.{self.table_chunks}").all()
-
-    def upgrade(self, _encoder):
-        # 1. Add new column
-        # self.session.execute(f"""
-        # ALTER TABLE {self.keyspace}.{self.table_chunks}
-        # ADD embedding_e5 vector<float, 384>
-        # """)
-
-        # 2. Compute embeddings for recent chunks
-        select_stmt = self.session.prepare(
-            f"""
-            SELECT chunk 
-            FROM {self.keyspace}.{self.table_chunks}
-            WHERE user_id = ? AND url_id > minTimeuuid(?)
-            ALLOW FILTERING
-            """
-        )
-        update_stmt = self.session.prepare(
-            f"""
-            UPDATE {self.keyspace}.{self.table_chunks}
-            SET embedding_e5 = ?
-            WHERE user_id = ? AND chunk = ?
-            """
-        )
-
-        recent = datetime(2023, 7, 10)
-        for user_id in self._get_user_ids():
-            rows = self.session.execute(select_stmt, (user_id, recent)).all()
-            print(str(len(rows)) + ' rows to update')
-            for row in rows:
-                embedding = _encoder(row.chunk)
-                self.session.execute(update_stmt, (embedding, user_id, row.chunk))
