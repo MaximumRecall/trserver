@@ -107,7 +107,8 @@ class DB:
                       full_url: str,
                       title: str,
                       text_content: str,
-                      chunks: List[Tuple[str, List[float]]]) -> None:
+                      chunks: List[Tuple[str, List[float]]],
+                      url_uuid: Optional[uuid1]) -> None:
         st_urls = self.session.prepare(
             f"""
             INSERT INTO {self.keyspace}.{self.table_urls}
@@ -123,7 +124,8 @@ class DB:
             """
         )
         # TODO retry?
-        url_uuid = uuid1()
+        if not url_uuid:
+            url_uuid = uuid1()
         self.session.execute(st_urls, (user_id, url_uuid, full_url, title))
         self.session.execute(st_paths, (user_id, path, url_uuid, text_content))
 
@@ -137,9 +139,10 @@ class DB:
         denormalized_chunks = [(user_id, url_uuid, full_url, title, chunk, embedding)
                                for chunk, embedding in chunks]
         backoff = 0.5
+        # print(f"Inserting {denormalized_chunks}")
         while denormalized_chunks and backoff < 60:
             results = execute_concurrent_with_args(self.session, st_chunks, denormalized_chunks,
-                                                   concurrency=16, raise_on_first_error=False)
+                                                   concurrency=16, raise_on_first_error=True)
             denormalized_chunks = [chunk for chunk, (success, _)
                                    in zip(denormalized_chunks, results) if not success]
             time.sleep(backoff)

@@ -7,6 +7,7 @@ from uuid import UUID, uuid4
 import nltk
 import numpy as np
 import openai
+import re
 from sentence_transformers import SentenceTransformer
 from sklearn.feature_extraction.text import CountVectorizer
 import tiktoken
@@ -24,8 +25,8 @@ if not openai.api_key:
 _gpt_tokenizer = tiktoken.encoding_for_model('gpt-3.5-turbo')
 
 
-_e5_model = SentenceTransformer('intfloat/e5-base-v2')
-_e5_tokenizer = AutoTokenizer.from_pretrained("intfloat/e5-base-v2")
+_e5_model = SentenceTransformer('intfloat/e5-small-v2')
+_e5_tokenizer = AutoTokenizer.from_pretrained("intfloat/e5-small-v2")
 _encoder = _e5_model.encode
 
 
@@ -80,12 +81,18 @@ def _group_sentences_with_overlap(sentences, max_tokens):
             current_token_count += len(list(_e5_tokenizer.encode(last_sentence)))
             new_token_count += len(list(_e5_tokenizer.encode(last_sentence)))
 
-        # Add the sentence if it fits within the token limit
+        # Add the sentence if it fits within the token limit,
+        # otherwise start a new group
         if new_token_count <= max_tokens:
             current_group.append(sentence)
             current_token_count = new_token_count
         else:
             grouped_sentences.append(current_group)
+            # cut sentence in half (by word) until it's under the token limit
+            while token_count > max_tokens:
+                words = sentence.split()
+                sentence = ' '.join(words[:len(words)//2])
+                token_count = len(list(_e5_tokenizer.encode(sentence)))
             current_group = [sentence]
             current_token_count = token_count
 
@@ -96,15 +103,15 @@ def _group_sentences_with_overlap(sentences, max_tokens):
         grouped_sentences.append(current_group)
 
     return grouped_sentences
-def _save_article(db: DB, path: str, text: str, url: str, title: str, user_id: uuid4) -> None:
-    # require that sentences contain an alphabetical character
-    # (so that it doesn't match lines that are just a bunch of punctuation)
+def _save_article(db: DB, path: str, text: str, url: str, title: str, user_id: uuid4, url_id=None) -> None:
+    text = re.sub(r'\s+', ' ', text)
     sentences = [sentence.strip() for sentence in nltk.sent_tokenize(text)]
-    sentence_groups = _group_sentences_by_tokens(sentences, 500)
-    group_texts = [' '.join(group) for group in sentence_groups]
-    flattened = ['passage: ' + chunk for chunk in [title] + group_texts]
+    sentence_groups = _group_sentences_with_overlap(sentences, 500)
+    group_texts = ([title] if title else []) + [' '.join(group) for group in sentence_groups]
+    # print(group_texts)
+    flattened = ['passage: ' + chunk for chunk in group_texts]
     vectors = _encoder(flattened, normalize_embeddings=True)
-    db.upsert_chunks(user_id, path, url, title, text, zip(flattened, vectors))
+    db.upsert_chunks(user_id, path, url, title, text, zip(group_texts, vectors), url_id)
 
 
 def _is_different(text, last_version):
@@ -223,3 +230,38 @@ def stream_snapshot(db: DB, user_id_str: str, url_id_str: str) -> tuple[str, str
         yield piece
     formatted_content = ' '.join(formatted_pieces)
     db.save_formatting(user_id, url_id, path, formatted_content)
+
+def _upgrade(db, _encoder, start_at=463):
+    # 1. Add new column
+    # self.session.execute(f"""
+    # ALTER TABLE {self.keyspace}.{self.table_chunks}
+    # ADD embedding_e5v2 vector<float, 384>
+    # """)
+
+    # 2. Compute embeddings for recent chunks
+    select_stmt = db.session.prepare(
+        f"""
+        SELECT user_id, url_id, path, text_content
+        FROM {db.keyspace}.{db.table_paths}
+        WHERE url_id < minTimeuuid('2023-08-08 00:00+0000')
+        ALLOW FILTERING
+        """
+    )
+
+    rows = db.session.execute(select_stmt, []).all()
+    print(str(len(rows)) + ' rows to update')
+    for i, row in enumerate(rows):
+        if i < start_at:
+            continue
+        # 3. Join to the urls table
+        url_stmt = db.session.prepare(
+            f"""
+            SELECT full_url
+            FROM {db.keyspace}.{db.table_urls}
+            WHERE user_id = ? AND url_id = ?
+            """
+        )
+        url = db.session.execute(url_stmt, [row.user_id, row.url_id]).one().full_url
+        # 4. Let save_article do the work
+        _save_article(db, row.path, row.text_content, url, '', row.user_id)
+        print(i)
