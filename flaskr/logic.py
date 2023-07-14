@@ -187,14 +187,19 @@ def load_snapshot(db: DB, user_id_str: str, url: str, saved_at_str: str) -> tupl
     saved_at = datetime.fromisoformat(saved_at_str)
     parsed = urlparse(url)
     path = parsed.hostname + parsed.path
+    _, title, _, formatted_content = db.load_snapshot(user_id, url, path, saved_at)
+    return title, formatted_content
+
+def stream_snapshot(db: DB, user_id_str: str, url: str, saved_at_str: str) -> tuple[str, str]:
+    user_id = UUID(user_id_str)
+    saved_at = datetime.fromisoformat(saved_at_str)
+    parsed = urlparse(url)
+    path = parsed.hostname + parsed.path
     url_id, title, text_content, formatted_content = db.load_snapshot(user_id, url, path, saved_at)
 
-    if not formatted_content:
-        formatted_pieces = []
-        for piece in _ai_format(text_content):
-            formatted_pieces.append(piece)
-            yield piece
-        formatted_content = ' '.join(formatted_pieces)
-        db.save_formatting(user_id, url_id, path, formatted_content)
-    else:
-        yield formatted_content
+    formatted_pieces = []
+    for piece in _ai_format(text_content):
+        formatted_pieces.append(piece)
+        yield piece
+    formatted_content = ' '.join(formatted_pieces)
+    db.save_formatting(user_id, url_id, path, formatted_content)

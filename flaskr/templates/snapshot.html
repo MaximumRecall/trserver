@@ -1,24 +1,32 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Snapshot</title>
+    <title>Snapshot of {{ title }}</title>
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.0/css/bootstrap.min.css">
-    <script>
-        document.addEventListener('DOMContentLoaded', function () {
-            var source = new EventSource("{{ url_for('snapshot', user_id_str=user_id_str, url=url, saved_at_str=saved_at_str) }}");
-            source.onmessage = function (event) {
-                var data = JSON.parse(event.data);
-                document.getElementById("title").textContent = data.title;
-                document.getElementById("formatted_content").innerHTML = data.formatted_content;
-            }
-        });
-    </script>
 </head>
 <body>
     <div class="container">
-        <p>Reformatted snapshot of <a href="#" id="title"></a>
+        <p>Reformatted snapshot of <a href="{{ url }}" id="title">{{ title }}</a>
         Taken at {{ saved_at_str }}</p>
     </div>
-    <div id="formatted_content"></div>
+    <div id="formatted_content">{{ formatted_content | safe }}</div>
+    {% if not formatted_content %}
+    <script>
+      let source;
+
+      document.addEventListener('DOMContentLoaded', () => {
+        source = new EventSource("{{ url_for('snapshot_stream', user_id_str=user_id_str, url=url, saved_at_str=saved_at_str) }}");
+
+        source.onmessage = (event) => {
+          const data = JSON.parse(event.data);
+          document.getElementById("formatted_content").innerHTML += data.formatted_content;
+        };
+
+        source.onerror = (err) => {
+          console.error('EventSource failed:', err);
+        };
+      });
+  </script>
+  {% endif %}
 </body>
 </html>

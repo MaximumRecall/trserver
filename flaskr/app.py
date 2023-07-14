@@ -69,13 +69,20 @@ def save_if_new():
 @app.route('/snapshot/<user_id_str>/<path:url>/<saved_at_str>/', methods=['GET'])
 @stream_with_context
 def snapshot(user_id_str, url, saved_at_str):
+    title, formatted_content = logic.load_snapshot(db, user_id_str, url, saved_at_str)
+    return render_template('snapshot.html',
+                           user_id_str=user_id_str,
+                           saved_at_str=saved_at_str,
+                           url=url,
+                           title=title,
+                           formatted_content=formatted_content)
+
+@app.route('/snapshot/stream/<user_id_str>/<path:url>/<saved_at_str>/', methods=['GET'])
+@stream_with_context
+def snapshot_stream(user_id_str, url, saved_at_str):
     def generate():
-        title = None
         for formatted_content in logic.load_snapshot(db, user_id_str, url, saved_at_str):
-            if not title:
-                title = formatted_content
-            else:
-                yield 'data: {}\n\n'.format(json.dumps({"title": title, "formatted_content": formatted_content}))
+            yield 'data: {}\n\n'.format(json.dumps({"formatted_content": formatted_content}))
     return Response(generate(), mimetype='text/event-stream')
 
 
