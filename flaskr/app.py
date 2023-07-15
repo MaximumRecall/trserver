@@ -83,6 +83,7 @@ def snapshot_stream(user_id_str, url, saved_at_str):
     def generate():
         for formatted_content in logic.load_snapshot(db, user_id_str, url, saved_at_str):
             yield 'data: {}\n\n'.format(json.dumps({"formatted_content": formatted_content}))
+        yield 'event: EOF\ndata: {}\n\n'
     return Response(generate(), mimetype='text/event-stream')
 
 

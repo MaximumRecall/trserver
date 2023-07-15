@@ -12,21 +12,23 @@
     <div id="formatted_content">{{ formatted_content | safe }}</div>
     {% if not formatted_content %}
     <script>
-      let source;
-
-      document.addEventListener('DOMContentLoaded', () => {
-        source = new EventSource("{{ url_for('snapshot_stream', user_id_str=user_id_str, url=url, saved_at_str=saved_at_str) }}");
+    document.addEventListener('DOMContentLoaded', () => {
+        const source = new EventSource("{{ url_for('snapshot_stream', user_id_str=user_id_str, url=url, saved_at_str=saved_at_str) }}");
 
         source.onmessage = (event) => {
-          const data = JSON.parse(event.data);
-          document.getElementById("formatted_content").innerHTML += data.formatted_content;
+            const data = JSON.parse(event.data);
+            document.getElementById("formatted_content").innerHTML += data.formatted_content;
         };
 
+        source.addEventListener('EOF', function(event) {
+            source.close();
+        }, false);
+    
         source.onerror = (err) => {
-          console.error('EventSource failed:', err);
+            console.error('EventSource failed:', err);
         };
-      });
-  </script>
-  {% endif %}
+    });
+    </script>
+    {% endif %}
 </body>
 </html>
