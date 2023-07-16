@@ -66,20 +66,9 @@ def save_if_new():
     return jsonify({"saved": result}), 200
 
 
-@app.route('/snapshot', methods=['POST'])
+@app.route('/snapshot/<user_id_str>/<path:url>/<saved_at_str>/', methods=['GET'])
 @stream_with_context
 def snapshot(user_id_str, url, saved_at_str):
-    url = data.get('url')
-    user_id_str = data.get('user_id')
-    saved_at_str = data.get('saved_at')
-
-    if not url:
-        return jsonify({"error": "url not provided"}), 400
-    if not user_id_str:
-        return jsonify({"error": "user_id not provided"}), 400
-    if not saved_at_str:
-        return jsonify({"error": "saved_at_str not provided"}), 400
-
     title, formatted_content = logic.load_snapshot(db, user_id_str, url, saved_at_str)
     return render_template('snapshot.html',
                            user_id_str=user_id_str,
