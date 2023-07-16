@@ -1,0 +1,8 @@
+{% macro post_link(text, url, form_id, params={}) %}
+<form id="post-form-{{ form_id }}" action="{{ url }}" method="post" style="display:none;">
+    {% for name, value in params.items() %}
+        <input type="hidden" name="{{ name }}" value="{{ value }}">
+    {% endfor %}
+</form>
+<a href="#" onclick="document.getElementById('post-form-{{ form_id }}').submit();">{{ text }}</a>
+{% endmacro %}
