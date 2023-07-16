@@ -9,7 +9,10 @@
         <p>Reformatted snapshot of <a href="{{ url }}" id="title">{{ title }}</a>
         Taken at {{ saved_at_str }}</p>
     </div>
-    <div id="formatted_content">{{ formatted_content | safe }}</div>
+    <div id="formatted_content">
+        {% if formatted_content %}
+            {{ formatted_content | safe }}
+        {% endif %}</div>
     {% if not formatted_content %}
     <script>
     document.addEventListener('DOMContentLoaded', () => {
@@ -23,7 +26,7 @@
         source.addEventListener('EOF', function(event) {
             source.close();
         }, false);
-    
+
         source.onerror = (err) => {
             console.error('EventSource failed:', err);
         };
