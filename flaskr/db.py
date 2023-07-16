@@ -2,6 +2,7 @@ import time
 from collections import defaultdict
 from datetime import datetime
 from typing import Dict, List, Tuple, Union, Any, Optional
+from urllib.parse import urlparse
 from uuid import uuid4, uuid1
 
 from cassandra.cluster import Cluster
@@ -150,7 +151,7 @@ class DB:
     def recent_urls(self, user_id: uuid4, saved_before: Optional[datetime], limit: int) -> List[Dict[str, Union[str, datetime]]]:
         if saved_before:
             cql = f"""
-                  SELECT full_url, title, toTimestamp(url_id) as saved_at 
+                  SELECT full_url, title, url_id 
                   FROM {self.keyspace}.{self.table_urls} 
                   WHERE user_id = ? AND url_id < minTimeuuid(?)
                   ORDER BY url_id DESC
@@ -158,7 +159,7 @@ class DB:
                   """
         else:
             cql = f"""
-                  SELECT full_url, title, toTimestamp(url_id) as saved_at 
+                  SELECT full_url, title, url_id 
                   FROM {self.keyspace}.{self.table_urls} 
                   WHERE user_id = ? 
                   ORDER BY url_id DESC
@@ -171,41 +172,43 @@ class DB:
             results = self.session.execute(query, (user_id, saved_before, limit))
         else:
             results = self.session.execute(query, (user_id, limit))
-        return [{k: getattr(row, k) for k in ['full_url', 'title', 'saved_at']} for row in results]
+        return [{k: getattr(row, k) for k in ['full_url', 'title', 'url_id']} for row in results]
 
 
     def search(self, user_id: uuid4, vector: List[float]) -> List[Dict[str, Union[Tuple[str, float], datetime, List[str]]]]:
         query = self.session.prepare(
             f"""
-            SELECT full_url, title, chunk, toTimestamp(url_id) as saved_at, similarity_dot_product(embedding_e5, ?) as score
+            SELECT full_url, title, chunk, url_id, similarity_dot_product(embedding_e5, ?) as score
             FROM {self.keyspace}.{self.table_chunks} 
             WHERE user_id = ? 
             ORDER BY embedding_e5 ANN OF ? LIMIT 10
             """
         )
         result_set = self.session.execute(query, (vector, user_id, vector))
-        url_dict = defaultdict(lambda: {'chunks': [], 'title': None, 'saved_at': None})
+        url_dict = defaultdict(lambda: {'chunks': [], 'title': None, 'url_id': None})
 
         for row in result_set:
             if len(url_dict[row.full_url]['chunks']) < 3:  # only keep the top 3 chunks for each URL
                 url_dict[row.full_url]['chunks'].append((row.chunk, row.score))
                 url_dict[row.full_url]['title'] = row.title
-                url_dict[row.full_url]['saved_at'] = row.saved_at
+                url_dict[row.full_url]['url_id'] = row.url_id
 
         # Convert dictionary to list
         return [{'full_url': url, **info} for url, info in url_dict.items()]
 
-    def load_snapshot(self, user_id: uuid4, url: str, path: str, saved_at: datetime) -> tuple[uuid1, str, str, str]:
+    def load_snapshot(self, user_id: uuid4, url_id: uuid1) -> tuple[uuid1, str, str, str]:
         query = self.session.prepare(
             f"""
-            SELECT url_id, title FROM {self.keyspace}.{self.table_urls} 
-            WHERE user_id = ? AND full_url = ? AND url_id <= maxTimeuuid(?)
+            SELECT url_id, url, title FROM {self.keyspace}.{self.table_urls} 
+            WHERE user_id = ? AND url_id = ?
             """
         )
         # sort the results because we can't do it in CQL
-        rows = self.session.execute(query, (user_id, url, saved_at)).all()
+        rows = self.session.execute(query, (user_id, url_id)).all()
         rows.sort(key=lambda row: row.url_id, reverse=True)
-        url_id, title = rows[0]
+        url_id, url, title = rows[0]
+        parsed = urlparse(url)
+        path = parsed.hostname + parsed.path
 
         query = self.session.prepare(
             f"""

@@ -66,14 +66,13 @@ def save_if_new():
     return jsonify({"saved": result}), 200
 
 
-@app.route('/snapshot/<user_id_str>/<path:url>/<saved_at_str>/', methods=['GET'])
+@app.route('/snapshot/<user_id_str>/<url_id_str>/', methods=['GET'])
 @stream_with_context
-def snapshot(user_id_str, url, saved_at_str):
-    title, formatted_content = logic.load_snapshot(db, user_id_str, url, saved_at_str)
+def snapshot(user_id_str, url_id_str):
+    title, formatted_content = logic.load_snapshot(db, user_id_str, url_id_str)
     return render_template('snapshot.html',
                            user_id_str=user_id_str,
-                           saved_at_str=saved_at_str,
-                           url=url,
+                           url_id_str=url_id_str,
                            title=title,
                            formatted_content=formatted_content)
 

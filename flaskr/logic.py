@@ -1,5 +1,5 @@
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional, List
 from urllib.parse import urlparse
 from uuid import UUID, uuid4
@@ -147,6 +147,12 @@ def _ai_format(text_content):
                 yield response_piece['choices'][0]['delta']['content']
 
 
+def _uuid1_to_datetime(uuid1):
+    # UUID timestamps are in 100-nanosecond units since 15th October 1582
+    uuid_datetime = datetime(1582, 10, 15) + timedelta(microseconds=uuid1.time // 10)
+    return uuid_datetime
+
+
 def save_if_new(db: DB, url: str, title: str, text: str, user_id_str: str) -> bool:
     user_id = UUID(user_id_str)
     parsed = urlparse(url)
@@ -167,9 +173,10 @@ def recent_urls(db: DB, user_id_str: str, saved_before_str: Optional[str] = None
 
     limit = 10
     results = db.recent_urls(user_id, saved_before, limit)
-    oldest_saved_at = min(result['saved_at'] for result in results) if results and len(results) == limit else None
     for result in results:
+        result['saved_at'] = _uuid1_to_datetime(result['url_id'])
         result['saved_at_human'] = humanize_datetime(result['saved_at'])
+    oldest_saved_at = min(result['saved_at'] for result in results) if results and len(results) == limit else None
     print('saved urls are ' + str(results))
     return results, oldest_saved_at
 
@@ -178,24 +185,21 @@ def search(db: DB, user_id_str: str, search_text: str) -> list:
     vector = _encoder.encode([search_text], normalize_embeddings=True)[0]
     results = db.search(UUID(user_id_str), vector)
     for result in results:
-        result['saved_at'] = humanize_datetime(result['saved_at'])
+        dt = _uuid1_to_datetime(result['url_id'])
+        result['saved_at_human'] = humanize_datetime(dt)
     return results
 
 
-def load_snapshot(db: DB, user_id_str: str, url: str, saved_at_str: str) -> tuple[str, str]:
+def load_snapshot(db: DB, user_id_str: str, url_id_str: str) -> tuple[str, str]:
     user_id = UUID(user_id_str)
-    saved_at = datetime.fromisoformat(saved_at_str)
-    parsed = urlparse(url)
-    path = parsed.hostname + parsed.path
-    _, title, _, formatted_content = db.load_snapshot(user_id, url, path, saved_at)
+    url_id = UUID(url_id_str)
+    _, title, _, formatted_content = db.load_snapshot(user_id, url_id)
     return title, formatted_content
 
-def stream_snapshot(db: DB, user_id_str: str, url: str, saved_at_str: str) -> tuple[str, str]:
+def stream_snapshot(db: DB, user_id_str: str, url_id_str: str) -> tuple[str, str]:
     user_id = UUID(user_id_str)
-    saved_at = datetime.fromisoformat(saved_at_str)
-    parsed = urlparse(url)
-    path = parsed.hostname + parsed.path
-    url_id, title, text_content, formatted_content = db.load_snapshot(user_id, url, path, saved_at)
+    url_id = UUID(url_id_str)
+    url_id, title, text_content, formatted_content = db.load_snapshot(user_id, url_id)
 
     formatted_pieces = []
     for piece in _ai_format(text_content):

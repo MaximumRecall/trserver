@@ -22,7 +22,7 @@
                 <div class="card-body">
                     <h5 class="card-title"><a href="{{ url.full_url }}">{{ url.title }}</a></h5>
                     <p class="card-text">Saved at: {{ url.saved_at_human }}</p>
-                    <p class="card-text"><a href="{{ url_for('snapshot', user_id_str=user_id_str, url=url.full_url, saved_at_str=url.saved_at) }}">View snapshot</a></p>
+                    <p class="card-text"><a href="{{ url_for('snapshot', user_id_str=user_id_str, url_id_str=url_id_str) }}">View snapshot</a></p>
                 </div>
             </div>
         {% endfor %}
