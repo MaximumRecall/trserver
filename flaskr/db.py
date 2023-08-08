@@ -75,7 +75,7 @@ class DB:
             full_url text,
             title text,
             chunk text,
-            embedding_e5 vector<float, 384>,
+            embedding_e5v2 vector<float, 384>,
             PRIMARY KEY (user_id, chunk));
             """
         )
@@ -83,7 +83,7 @@ class DB:
         embedding_index_name = f"{self.table_chunks}_embedding_idx"
         self.session.execute(
             f"""
-            CREATE CUSTOM INDEX IF NOT EXISTS {embedding_index_name} ON {self.keyspace}.{self.table_chunks} (embedding_e5)
+            CREATE CUSTOM INDEX IF NOT EXISTS {embedding_index_name} ON {self.keyspace}.{self.table_chunks} (embedding_e5v2)
             USING 'org.apache.cassandra.index.sai.StorageAttachedIndex'
             WITH OPTIONS = {{ 'similarity_function': 'dot_product' }}
             """
@@ -130,7 +130,7 @@ class DB:
         st_chunks = self.session.prepare(
             f"""
             INSERT INTO {self.keyspace}.{self.table_chunks}
-            (user_id, url_id, full_url, title, chunk, embedding_e5)
+            (user_id, url_id, full_url, title, chunk, embedding_e5v2)
             VALUES (?, ?, ?, ?, ?, ?)
             """
         )
@@ -178,10 +178,10 @@ class DB:
     def search(self, user_id: uuid4, vector: List[float]) -> List[Dict[str, Union[Tuple[str, float], datetime, List[str]]]]:
         query = self.session.prepare(
             f"""
-            SELECT full_url, title, chunk, url_id, similarity_dot_product(embedding_e5, ?) as score
+            SELECT full_url, title, chunk, url_id, similarity_dot_product(embedding_e5v2, ?) as score
             FROM {self.keyspace}.{self.table_chunks} 
             WHERE user_id = ? 
-            ORDER BY embedding_e5 ANN OF ? LIMIT 10
+            ORDER BY embedding_e5v2 ANN OF ? LIMIT 10
             """
         )
         result_set = self.session.execute(query, (vector, user_id, vector))

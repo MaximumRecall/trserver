@@ -7,11 +7,10 @@ from uuid import UUID, uuid4
 import nltk
 import numpy as np
 import openai
+from sentence_transformers import SentenceTransformer
 from sklearn.feature_extraction.text import CountVectorizer
 import tiktoken
-import torch.nn.functional as F
-from torch import Tensor
-from transformers import AutoTokenizer, AutoModel
+from transformers import AutoTokenizer
 
 from .db import DB
 from .util import humanize_datetime
@@ -25,26 +24,9 @@ if not openai.api_key:
 _gpt_tokenizer = tiktoken.encoding_for_model('gpt-3.5-turbo')
 
 
-class E5Encoder:
-    def __init__(self):
-        self.tokenizer = AutoTokenizer.from_pretrained('intfloat/multilingual-e5-small')
-        self.model = AutoModel.from_pretrained('intfloat/multilingual-e5-small')
-
-    def _average_pool(self, last_hidden_states: Tensor, attention_mask: Tensor) -> Tensor:
-        last_hidden = last_hidden_states.masked_fill(~attention_mask[..., None].bool(), 0.0)
-        return last_hidden.sum(dim=1) / attention_mask.sum(dim=1)[..., None]
-
-    def encode(self, inputs: List[str], normalize_embeddings=True) -> List[List[float]]:
-        batch_dict = self.tokenizer(inputs, max_length=512, padding=True, truncation=True, return_tensors='pt')
-        outputs = self.model(**batch_dict)
-        embeddings = self._average_pool(outputs.last_hidden_state, batch_dict['attention_mask'])
-
-        if normalize_embeddings:
-            embeddings = F.normalize(embeddings, p=2, dim=1)
-
-        # Convert tensor to list of lists
-        return embeddings.tolist()
-_encoder = E5Encoder()
+_e5_model = SentenceTransformer('intfloat/e5-base-v2')
+_e5_tokenizer = AutoTokenizer.from_pretrained("intfloat/e5-base-v2")
+_encoder = _e5_model.encode
 
 
 def truncate_to(source, max_tokens):
@@ -81,13 +63,47 @@ def summarize(text: str) -> str:
     return response.choices[0].message.content
 
 
+def _group_sentences_with_overlap(sentences, max_tokens):
+    grouped_sentences = []
+    current_group = []
+    current_token_count = 0
+    last_sentence = ""
+
+    # Group sentences in chunks of max_tokens
+    for sentence in sentences:
+        token_count = len(list(_e5_tokenizer.encode(sentence)))
+        new_token_count = current_token_count + token_count
+
+        # Check if the previous group's last sentence should be added to the current group
+        if last_sentence and new_token_count - len(list(_e5_tokenizer.encode(last_sentence))) <= max_tokens:
+            current_group.append(last_sentence)
+            current_token_count += len(list(_e5_tokenizer.encode(last_sentence)))
+            new_token_count += len(list(_e5_tokenizer.encode(last_sentence)))
+
+        # Add the sentence if it fits within the token limit
+        if new_token_count <= max_tokens:
+            current_group.append(sentence)
+            current_token_count = new_token_count
+        else:
+            grouped_sentences.append(current_group)
+            current_group = [sentence]
+            current_token_count = token_count
+
+        last_sentence = sentence
+
+    # Add the last group if it's not empty
+    if current_group:
+        grouped_sentences.append(current_group)
+
+    return grouped_sentences
 def _save_article(db: DB, path: str, text: str, url: str, title: str, user_id: uuid4) -> None:
     # require that sentences contain an alphabetical character
     # (so that it doesn't match lines that are just a bunch of punctuation)
-    sentences = [nltk.sent_tokenize(text)]
-    flattened = [title] + [sentence.strip() for sentence in sentences
-                           if any(c.isalpha() for c in sentence)]
-    vectors = _encoder.encode(flattened, normalize_embeddings=True)
+    sentences = [sentence.strip() for sentence in nltk.sent_tokenize(text)]
+    sentence_groups = _group_sentences_by_tokens(sentences, 500)
+    group_texts = [' '.join(group) for group in sentence_groups]
+    flattened = ['passage: ' + chunk for chunk in [title] + group_texts]
+    vectors = _encoder(flattened, normalize_embeddings=True)
     db.upsert_chunks(user_id, path, url, title, text, zip(flattened, vectors))
 
 
@@ -182,7 +198,7 @@ def recent_urls(db: DB, user_id_str: str, saved_before_str: Optional[str] = None
 
 
 def search(db: DB, user_id_str: str, search_text: str) -> list:
-    vector = _encoder.encode([search_text], normalize_embeddings=True)[0]
+    vector = _encoder(['query: ' + search_text], normalize_embeddings=True)[0]
     results = db.search(UUID(user_id_str), vector)
     for result in results:
         dt = _uuid1_to_datetime(result['url_id'])
