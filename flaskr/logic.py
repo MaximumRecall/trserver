@@ -22,7 +22,7 @@ nltk.download('punkt') # needed locally; in heroku this is done in nltk.txt
 openai.api_key = os.environ.get('OPENAI_KEY')
 if not openai.api_key:
     raise Exception('OPENAI_KEY environment variable not set')
-_tokenizer = tiktoken.encoding_for_model('gpt-3.5-turbo')
+_gpt_tokenizer = tiktoken.encoding_for_model('gpt-3.5-turbo')
 
 
 class E5Encoder:
@@ -48,7 +48,7 @@ _encoder = E5Encoder()
 
 
 def truncate_to(source, max_tokens):
-    tokens = list(_tokenizer.encode(source))
+    tokens = list(_gpt_tokenizer.encode(source))
     truncated_tokens = []
     total_tokens = 0
 
@@ -58,7 +58,7 @@ def truncate_to(source, max_tokens):
             break
         truncated_tokens.append(token)
 
-    truncated_s = _tokenizer.decode(truncated_tokens)
+    truncated_s = _gpt_tokenizer.decode(truncated_tokens)
     return truncated_s
 
 
@@ -114,7 +114,7 @@ def _group_sentences_by_tokens(sentences, max_tokens):
 
     # Group sentences in chunks of max_tokens
     for sentence in sentences:
-        token_count = len(list(_tokenizer.encode(sentence)))
+        token_count = len(list(_gpt_tokenizer.encode(sentence)))
         if current_token_count + token_count <= max_tokens:
             current_group.append(sentence)
             current_token_count += token_count
