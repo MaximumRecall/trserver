@@ -6,6 +6,7 @@ from cassandra.cluster import Cluster
 from .db import DB
 
 
+# configure for astra or localhost
 astra_client_id = os.environ.get('ASTRA_CLIENT_ID')
 if astra_client_id:
     print('Connecting to Astra')
@@ -19,6 +20,8 @@ if astra_client_id:
     auth_provider = PlainTextAuthProvider(astra_client_id, astra_client_secret)
     cluster = Cluster(cloud=cloud_config, auth_provider=auth_provider)
     db = DB(cluster)
+    tr_data_dir = '/home/ubuntu/trserver/data'
 else:
     print('Connecting to local Cassandra')
     db = DB(Cluster())
+    tr_data_dir = '/home/jonathan/Projects/trserver/data'

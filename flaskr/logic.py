@@ -1,4 +1,7 @@
+import gzip
+import json
 import os
+import time
 from datetime import datetime, timedelta
 from typing import Optional, List
 from urllib.parse import urlparse
@@ -13,6 +16,7 @@ from sklearn.feature_extraction.text import CountVectorizer
 import tiktoken
 from transformers import AutoTokenizer
 
+from .config import tr_data_dir
 from .db import DB
 from .util import humanize_datetime
 
@@ -177,6 +181,26 @@ def _uuid1_to_datetime(uuid1):
 
 
 def save_if_new(db: DB, url: str, title: str, text: str, user_id_str: str) -> bool:
+    # create a filename based on the current time.  if it already exists, increment it.
+    t = time.time_ns()
+    while True:
+        full_path = f'{tr_data_dir}/{user_id_str}/{t}.gz'
+        if not os.path.exists(full_path):
+            break
+        t += 1
+    os.makedirs(os.path.dirname(full_path), exist_ok=True)
+    # json-ify the raw request
+    request_json = {
+        "url": url,
+        "title": title,
+        "text_content": text,
+        "user_id": user_id_str
+    }
+    # write the request json to the file
+    with gzip.open(full_path, 'wt') as f:
+        json.dump(request_json, f)
+
+    # check if the article is sufficiently different from the last version of the same url
     user_id = UUID(user_id_str)
     parsed = urlparse(url)
     path = parsed.hostname + parsed.path
@@ -184,8 +208,11 @@ def save_if_new(db: DB, url: str, title: str, text: str, user_id_str: str) -> bo
     if not _is_different(text, last_version):
         return False
 
+    # generate a more useful title if necessary
     if len(title) < 15:
         title = summarize(text)
+
+    # save the article in the database
     _save_article(db, path, text, url, title, user_id)
     return True
 
