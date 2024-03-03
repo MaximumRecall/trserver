@@ -6,20 +6,22 @@
 </head>
 <body>
     <div class="container">
-        <p>Reformatted snapshot of <a href="{{ url }}" id="title">{{ title }}</a>
-        Taken at {{ saved_at_str }}</p>
+        <p>Reformatted snapshot of <a href="{{ url }}" id="title">{{ title }}</a></p>
+        <p>Taken at {{ saved_at_str }}</p>
     </div>
     <div id="formatted_content">
         {% if formatted_content %}
             {{ formatted_content | safe }}
-        {% endif %}</div>
+        {% endif %}
+    </div>
     {% if not formatted_content %}
     <script>
     document.addEventListener('DOMContentLoaded', () => {
-        const source = new EventSource("{{ url_for('snapshot_stream', user_id_str=user_id_str, url=url, saved_at_str=saved_at_str) }}");
+        const source = new EventSource("{{ url_for('snapshot_stream', user_id_str=user_id_str, url_id_str=url_id_str) }}");
 
         source.onmessage = (event) => {
             const data = JSON.parse(event.data);
+            console.debug('EventSource message:', data.formatted_content);
             document.getElementById("formatted_content").innerHTML += data.formatted_content;
         };
 

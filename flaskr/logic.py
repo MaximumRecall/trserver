@@ -174,10 +174,9 @@ def _ai_format(text_content):
                 yield response_piece['choices'][0]['delta']['content']
 
 
-def _uuid1_to_datetime(uuid1):
+def _uuid1_to_datetime(uuid1: UUID) -> datetime:
     # UUID timestamps are in 100-nanosecond units since 15th October 1582
-    uuid_datetime = datetime(1582, 10, 15) + timedelta(microseconds=uuid1.time // 10)
-    return uuid_datetime
+    return datetime(1582, 10, 15) + timedelta(microseconds=uuid1.time // 10)
 
 
 def save_if_new(db: DB, url: str, title: str, text: str, user_id_str: str) -> bool:
@@ -243,19 +242,19 @@ def search(db: DB, user_id_str: str, search_text: str) -> list:
 def load_snapshot(db: DB, user_id_str: str, url_id_str: str) -> tuple[str, str]:
     user_id = UUID(user_id_str)
     url_id = UUID(url_id_str)
-    _, title, _, formatted_content = db.load_snapshot(user_id, url_id)
+    _, _, title, _, formatted_content = db.load_snapshot(user_id, url_id)
     return title, formatted_content
 
 def stream_snapshot(db: DB, user_id_str: str, url_id_str: str) -> tuple[str, str]:
     user_id = UUID(user_id_str)
     url_id = UUID(url_id_str)
-    url_id, title, text_content, formatted_content = db.load_snapshot(user_id, url_id)
+    url_id, path, title, text_content, formatted_content = db.load_snapshot(user_id, url_id)
 
     formatted_pieces = []
     for piece in _ai_format(text_content):
         formatted_pieces.append(piece)
         yield piece
-    formatted_content = ' '.join(formatted_pieces)
+    formatted_content = ''.join(formatted_pieces)
     db.save_formatting(user_id, url_id, path, formatted_content)
 
 def _upgrade(db, _encoder, start_at=463):

@@ -3,11 +3,10 @@ from collections import defaultdict
 from datetime import datetime
 from typing import Dict, List, Tuple, Union, Any, Optional
 from urllib.parse import urlparse
-from uuid import uuid4, uuid1
+from uuid import uuid4, uuid1, UUID
 
 from cassandra.cluster import Cluster
 from cassandra.concurrent import execute_concurrent_with_args
-
 
 # data model:
 # we have urls, paths, and chunks.
@@ -22,6 +21,7 @@ class DB:
         self.table_chunks = "saved_chunks"
         self.table_urls = "saved_urls"
         self.table_paths = "saved_paths"
+        # TODO add chunks_embedding_column as a constant so it can change easier
         self.cluster = cluster
         self.session = self.cluster.connect()
 
@@ -80,7 +80,7 @@ class DB:
             """
         )
         # Embedding index
-        embedding_index_name = f"{self.table_chunks}_embedding_idx"
+        embedding_index_name = f"{self.table_chunks}_embedding_idx" # update this when index column name changes
         self.session.execute(
             f"""
             CREATE CUSTOM INDEX IF NOT EXISTS {embedding_index_name} ON {self.keyspace}.{self.table_chunks} (embedding_e5v2)
@@ -151,7 +151,7 @@ class DB:
             raise Exception(f"Failed to insert {len(denormalized_chunks)} chunks")
 
 
-    def recent_urls(self, user_id: uuid4, saved_before: Optional[datetime], limit: int) -> List[Dict[str, Union[str, datetime]]]:
+    def recent_urls(self, user_id: uuid4, saved_before: Optional[datetime], limit: int) -> List[Dict[str, Union[str, datetime, UUID]]]:
         if saved_before:
             cql = f"""
                   SELECT full_url, title, url_id 
@@ -178,7 +178,7 @@ class DB:
         return [{k: getattr(row, k) for k in ['full_url', 'title', 'url_id']} for row in results]
 
 
-    def search(self, user_id: uuid4, vector: List[float]) -> List[Dict[str, Union[Tuple[str, float], datetime, List[str]]]]:
+    def search(self, user_id: uuid4, vector: List[float]) -> List[Dict[str, Union[Tuple[str, float, UUID]]]]:
         query = self.session.prepare(
             f"""
             SELECT full_url, title, chunk, url_id, similarity_dot_product(embedding_e5v2, ?) as score
@@ -199,17 +199,14 @@ class DB:
         # Convert dictionary to list
         return [{'full_url': url, **info} for url, info in url_dict.items()]
 
-    def load_snapshot(self, user_id: uuid4, url_id: uuid1) -> tuple[uuid1, str, str, str]:
+    def load_snapshot(self, user_id: uuid4, url_id: uuid1) -> tuple[uuid1, str, str, str, str]:
         query = self.session.prepare(
             f"""
-            SELECT url_id, url, title FROM {self.keyspace}.{self.table_urls} 
+            SELECT url_id, full_url, title FROM {self.keyspace}.{self.table_urls} 
             WHERE user_id = ? AND url_id = ?
             """
         )
-        # sort the results because we can't do it in CQL
-        rows = self.session.execute(query, (user_id, url_id)).all()
-        rows.sort(key=lambda row: row.url_id, reverse=True)
-        url_id, url, title = rows[0]
+        url_id, url, title = self.session.execute(query, (user_id, url_id)).one()
         parsed = urlparse(url)
         path = parsed.hostname + parsed.path
 
@@ -221,7 +218,7 @@ class DB:
             """
         )
         row = self.session.execute(query, (user_id, url_id, path)).one()
-        return url_id, title, row.text_content, row.formatted_content
+        return url_id, path, title, row.text_content, row.formatted_content
 
     def save_formatting(self, user_id: uuid4, url_id: uuid1, path: str, formatted_content: str) -> None:
         request = self.session.prepare(
