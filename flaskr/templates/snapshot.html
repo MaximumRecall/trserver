@@ -19,10 +19,12 @@
     document.addEventListener('DOMContentLoaded', () => {
         const source = new EventSource("{{ url_for('snapshot_stream', user_id_str=user_id_str, url_id_str=url_id_str) }}");
 
+        var all_content = '';
         source.onmessage = (event) => {
             const data = JSON.parse(event.data);
             console.debug('EventSource message:', data.formatted_content);
-            document.getElementById("formatted_content").innerHTML += data.formatted_content;
+            all_content += data.formatted_content;
+            document.getElementById("formatted_content").innerHTML = all_content;
         };
 
         source.addEventListener('EOF', function(event) {
