@@ -26,6 +26,7 @@ nltk.download('punkt') # needed locally; in heroku this is done in nltk.txt
 openai.api_key = os.environ.get('OPENAI_KEY')
 if not openai.api_key:
     raise Exception('OPENAI_KEY environment variable not set')
+# TODO update tiktoken and change this to 4o-mini
 _gpt_tokenizer = tiktoken.encoding_for_model('gpt-3.5-turbo')
 
 
@@ -36,28 +37,19 @@ _encoder = _e5_model.encode
 
 def truncate_to(source, max_tokens):
     tokens = list(_gpt_tokenizer.encode(source))
-    truncated_tokens = []
-    total_tokens = 0
-
-    for token in tokens:
-        total_tokens += 1
-        if total_tokens > max_tokens:
-            break
-        truncated_tokens.append(token)
-
+    truncated_tokens = list(_gpt_tokenizer.encode(source))[:max_tokens]
     truncated_s = _gpt_tokenizer.decode(truncated_tokens)
     return truncated_s
 
 
 _summarize_prompt = ("You are a helpful assistant who will give the subject of the provided web page content in a single sentence. "
-                     "Do not begin your response with any prefix."
                      "Give the subject in a form appropriate for an article or book title with no extra preamble or context."
                      "Examples of good responses: "
-                     "The significance of German immigrants in early Texas history, "
-                     "The successes and shortcomings of persistent collections in server-side Java development, "
-                     "A personal account of the benefits of intermittent fasting.")
+                     "`The significance of German immigrants in early Texas history`, "
+                     "`The successes and shortcomings of persistent collections in server-side Java development`, "
+                     "`A personal account of the benefits of intermittent fasting`.")
 def summarize(text: str) -> str:
-    truncated = truncate_to(text, 3900)
+    truncated = truncate_to(text, 16000)
     response = openai.ChatCompletion.create(
         model="gpt-4o-mini",
         messages=[
@@ -110,7 +102,7 @@ def _group_sentences_with_overlap(sentences, max_tokens):
 def _save_article(db: DB, path: str, text: str, url: str, title: str, user_id: uuid4, url_id=None) -> None:
     text = re.sub(r'\s+', ' ', text)
     sentences = [sentence.strip() for sentence in nltk.sent_tokenize(text)]
-    sentence_groups = _group_sentences_with_overlap(sentences, 500)
+    sentence_groups = _group_sentences_with_overlap(sentences, 100)
     group_texts = ([title] if title else []) + [' '.join(group) for group in sentence_groups]
     # print(group_texts)
     flattened = ['passage: ' + chunk for chunk in group_texts]
@@ -162,7 +154,7 @@ def _ai_format(text_content):
     for group in sentence_groups:
         group_text = ' '.join(group)
         response = openai.ChatCompletion.create(
-            model="gpt-3.5-turbo-16k",
+            model="gpt-4o-mini",
             messages=[
                 {"role": "system", "content": _format_prompt},
                 {"role": "user", "content": group_text},
