@@ -30,9 +30,18 @@ if not openai.api_key:
 _gpt_tokenizer = tiktoken.encoding_for_model('gpt-3.5-turbo')
 
 
-_e5_model = SentenceTransformer('intfloat/e5-small-v2')
-_e5_tokenizer = AutoTokenizer.from_pretrained("intfloat/e5-small-v2")
-_encoder = _e5_model.encode
+class OpenAiEncoder:
+    def encode(self, inputs: list[str], normalize_embeddings=True) -> list[list[float]]:
+        print(f"Requesting {str(len(inputs))} embeddings from openai")
+        start = datetime.now()
+        response = openai.Embedding.create(
+            input=inputs,
+            engine="text-embedding-v3-small"
+        )
+        end = datetime.now()
+        print(f"Received {str(len(inputs))} embeddings from openai in {str(end - start)}")
+        return [data.embedding for data in response.data]
+_encoder = OpenAiEncoder()
 
 
 def truncate_to(source, max_tokens):
@@ -67,7 +76,7 @@ def _group_sentences_with_overlap(sentences, max_tokens):
     last_sentence = ""
 
     def token_length(text):
-        return len(list(_e5_tokenizer.encode(text)))
+        return len(list(_gpt_tokenizer.encode(text)))
 
     # Group sentences in chunks of max_tokens
     for sentence in sentences:
@@ -113,8 +122,7 @@ def _save_article(db: DB, path: str, text: str, url: str, title: str, user_id: u
     sentence_groups = _group_sentences_with_overlap(sentences, 100)
     group_texts = ([title] if title else []) + [' '.join(group) for group in sentence_groups]
     # print(group_texts)
-    flattened = ['passage: ' + chunk for chunk in group_texts]
-    vectors = _encoder(flattened, normalize_embeddings=True)
+    vectors = _encoder(group_texts, normalize_embeddings=True)
     db.upsert_chunks(user_id, path, url, title, text, zip(group_texts, vectors), url_id)
 
 
