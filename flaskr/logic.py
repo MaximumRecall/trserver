@@ -66,33 +66,41 @@ def _group_sentences_with_overlap(sentences, max_tokens):
     current_token_count = 0
     last_sentence = ""
 
+    def token_length(text):
+        return len(list(_e5_tokenizer.encode(text)))
+
     # Group sentences in chunks of max_tokens
     for sentence in sentences:
-        token_count = len(list(_e5_tokenizer.encode(sentence)))
-        new_token_count = current_token_count + token_count
+        parts_to_process = [sentence]
 
-        # Check if the previous group's last sentence should be added to the current group
-        if last_sentence and new_token_count - len(list(_e5_tokenizer.encode(last_sentence))) <= max_tokens:
-            current_group.append(last_sentence)
-            current_token_count += len(list(_e5_tokenizer.encode(last_sentence)))
-            new_token_count += len(list(_e5_tokenizer.encode(last_sentence)))
+        while parts_to_process:
+            part = parts_to_process.pop(0)
+            token_count = token_length(part)
 
-        # Add the sentence if it fits within the token limit,
-        # otherwise start a new group
-        if new_token_count <= max_tokens:
-            current_group.append(sentence)
-            current_token_count = new_token_count
-        else:
-            grouped_sentences.append(current_group)
-            # cut sentence in half (by word) until it's under the token limit
-            while token_count > max_tokens:
-                words = sentence.split()
-                sentence = ' '.join(words[:len(words)//2])
-                token_count = len(list(_e5_tokenizer.encode(sentence)))
-            current_group = [sentence]
-            current_token_count = token_count
+            # If the part is too long even solo, split it
+            if token_count > max_tokens:
+                words = part.split()
+                mid = len(words) // 2
+                parts_to_process.insert(0, ' '.join(words[mid:]))
+                part = ' '.join(words[:mid])
+                token_count = token_length(part)
 
-        last_sentence = sentence
+            # Check if the previous group's last sentence should be added
+            if last_sentence and current_token_count + token_length(last_sentence) <= max_tokens:
+                current_group.append(last_sentence)
+                current_token_count += token_length(last_sentence)
+
+            # Add the part if it fits, otherwise start a new group
+            if current_token_count + token_count <= max_tokens:
+                current_group.append(part)
+                current_token_count += token_count
+            else:
+                if current_group:
+                    grouped_sentences.append(current_group)
+                current_group = [part]
+                current_token_count = token_count
+
+            last_sentence = part
 
     # Add the last group if it's not empty
     if current_group:
