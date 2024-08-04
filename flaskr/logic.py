@@ -170,9 +170,9 @@ def _ai_format(text_content):
             stream=True
         )
         for response_piece in response:
-            if response_piece and 'content' in response_piece['choices'][0]['delta']:
-                yield response_piece['choices'][0]['delta']['content']
-
+            if 'choices' in response_piece and len(response_piece['choices']) > 0:
+                if 'delta' in response_piece['choices'][0] and 'content' in response_piece['choices'][0]['delta']:
+                    yield response_piece['choices'][0]['delta']['content']
 
 def _uuid1_to_datetime(uuid1: UUID) -> datetime:
     # UUID timestamps are in 100-nanosecond units since 15th October 1582
