@@ -36,7 +36,7 @@ class OpenAiEncoder:
         start = datetime.now()
         response = openai.Embedding.create(
             input=inputs,
-            engine="text-embedding-v3-small"
+            engine="text-embedding-3-small"
         )
         end = datetime.now()
         print(f"Received {str(len(inputs))} embeddings from openai in {str(end - start)}")
