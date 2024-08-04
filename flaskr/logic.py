@@ -41,7 +41,7 @@ class OpenAiEncoder:
         end = datetime.now()
         print(f"Received {str(len(inputs))} embeddings from openai in {str(end - start)}")
         return [data.embedding for data in response.data]
-_encoder = OpenAiEncoder()
+_encoder = OpenAiEncoder().encode
 
 
 def truncate_to(source, max_tokens):
