@@ -59,7 +59,7 @@ _summarize_prompt = ("You are a helpful assistant who will give the subject of t
 def summarize(text: str) -> str:
     truncated = truncate_to(text, 3900)
     response = openai.ChatCompletion.create(
-        model="gpt-3.5-turbo",
+        model="gpt-4o-mini",
         messages=[
             {"role": "system", "content": _summarize_prompt},
             {"role": "user", "content": truncated},
