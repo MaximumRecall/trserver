@@ -85,7 +85,7 @@ class DB:
             f"""
             CREATE CUSTOM INDEX IF NOT EXISTS {embedding_index_name} ON {self.keyspace}.{self.table_chunks} (embedding_v3)
             USING 'org.apache.cassandra.index.sai.StorageAttachedIndex'
-            WITH OPTIONS = {{ 'source_model': 'openai-v3-small' }}
+            WITH OPTIONS = {{ 'source_model': 'OPENAI_V3_SMALL' }}
             """
         )
 
