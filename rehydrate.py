@@ -4,9 +4,8 @@ import json
 from uuid import UUID
 from typing import Dict, Any
 
-from config import db, tr_data_dir
-from logic import save_if_new, _is_different
-
+from flaskr.config import db, tr_data_dir
+from flaskr.logic import save_if_new, _is_different
 
 def rehydrate():
     # Walk through the tr_data_dir
