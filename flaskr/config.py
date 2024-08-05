@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 
 from cassandra.auth import PlainTextAuthProvider
 from cassandra.cluster import Cluster
@@ -6,7 +7,19 @@ from cassandra.cluster import Cluster
 from .db import DB
 
 
-# configure for astra or localhost
+# Load secret keys
+_secrets_dir = Path('secrets')
+if not _secrets_dir.is_dir():
+    raise(Exception('Secrets directory not found'))
+for secret_file in _secrets_dir.iterdir():
+    if secret_file.is_file():
+        env_var_name = secret_file.name.upper()
+        with open(secret_file, 'r') as f:
+            secret_value = f.read().strip()
+        os.environ[env_var_name] = secret_value
+
+
+# Configure DB for astra or localhost
 astra_client_id = os.environ.get('ASTRA_CLIENT_ID')
 if astra_client_id:
     print('Connecting to Astra')
