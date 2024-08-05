@@ -1,7 +1,6 @@
 import os
 import gzip
 import json
-from uuid import UUID
 from typing import Dict, Any
 
 from flaskr.config import db, tr_data_dir

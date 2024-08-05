@@ -132,7 +132,7 @@ def _is_different(text, last_version):
     vectors = vectorizer.toarray()
     normalized = vectors / np.linalg.norm(vectors, axis=1, keepdims=True)
     dot = np.dot(normalized[0], normalized[1])
-    print("difference between this and previous version is " + str(dot))
+    print("dot product between this and previous version is " + str(dot))
     return dot < 0.95
 
 
