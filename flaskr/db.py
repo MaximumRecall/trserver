@@ -123,7 +123,6 @@ class DB:
             VALUES (?, ?, ?, ?)
             """
         )
-        # TODO retry?
         if not url_uuid:
             url_uuid = uuid1()
         self.session.execute(st_urls, (user_id, url_uuid, full_url, title))
