@@ -10,11 +10,10 @@ from uuid import UUID, uuid4
 import nltk
 import numpy as np
 import openai
+import google.generativeai as gemini
 import re
-from sentence_transformers import SentenceTransformer
 from sklearn.feature_extraction.text import CountVectorizer
 import tiktoken
-from transformers import AutoTokenizer
 
 from .config import tr_data_dir
 from .db import DB
@@ -26,22 +25,20 @@ nltk.download('punkt') # needed locally; in heroku this is done in nltk.txt
 openai.api_key = os.environ.get('OPENAI_KEY')
 if not openai.api_key:
     raise Exception('OPENAI_KEY environment variable not set')
+gemini_key=os.environ["GEMINI_KEY"]
+if not gemini_key:
+    raise Exception('GEMINI_KEY environment variable not set')
+gemini.configure(api_key=gemini_key)
 # TODO update tiktoken and change this to 4o-mini
 _gpt_tokenizer = tiktoken.encoding_for_model('gpt-3.5-turbo')
 
 
-class OpenAiEncoder:
-    def encode(self, inputs: list[str], normalize_embeddings=True) -> list[list[float]]:
-        print(f"Requesting {str(len(inputs))} embeddings from openai")
-        start = datetime.now()
-        response = openai.Embedding.create(
-            input=inputs,
-            engine="text-embedding-3-small"
-        )
-        end = datetime.now()
-        print(f"Received {str(len(inputs))} embeddings from openai in {str(end - start)}")
-        return [data.embedding for data in response.data]
-_encoder = OpenAiEncoder().encode
+# Chunk embedding function using Gemini
+def _encoder(self, inputs: list[str]) -> list[list[float]]:
+    model = "models/text-embedding-004"
+    print(f"Requesting {len(inputs)} embeddings from Google GenAI")
+    result = gemini.embed_content(model=model, content=inputs)
+    return [embedding["values"] for embedding in result["embeddings"]]
 
 
 def truncate_to(source, max_tokens):

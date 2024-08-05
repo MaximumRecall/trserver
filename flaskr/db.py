@@ -75,7 +75,7 @@ class DB:
             full_url text,
             title text,
             chunk text,
-            embedding_v3 vector<float, 1536>,
+            embedding_g4 vector<float, 768>,
             PRIMARY KEY (user_id, chunk));
             """
         )
@@ -83,9 +83,9 @@ class DB:
         embedding_index_name = f"{self.table_chunks}_embedding_idx" # update this when index column name changes
         self.session.execute(
             f"""
-            CREATE CUSTOM INDEX IF NOT EXISTS {embedding_index_name} ON {self.keyspace}.{self.table_chunks} (embedding_v3)
+            CREATE CUSTOM INDEX IF NOT EXISTS {embedding_index_name} ON {self.keyspace}.{self.table_chunks} (embedding_g4)
             USING 'org.apache.cassandra.index.sai.StorageAttachedIndex'
-            WITH OPTIONS = {{ 'source_model': 'OPENAI_V3_SMALL' }}
+            WITH OPTIONS = {{ 'source_model': 'gecko' }}
             """
         )
 
@@ -131,7 +131,7 @@ class DB:
         st_chunks = self.session.prepare(
             f"""
             INSERT INTO {self.keyspace}.{self.table_chunks}
-            (user_id, url_id, full_url, title, chunk, embedding_v3)
+            (user_id, url_id, full_url, title, chunk, embedding_g4)
             VALUES (?, ?, ?, ?, ?, ?)
             """
         )
@@ -180,10 +180,10 @@ class DB:
     def search(self, user_id: uuid4, vector: List[float]) -> List[Dict[str, Union[Tuple[str, float, UUID]]]]:
         query = self.session.prepare(
             f"""
-            SELECT full_url, title, chunk, url_id, similarity_dot_product(embedding_v3, ?) as score
+            SELECT full_url, title, chunk, url_id, similarity_dot_product(embedding_g4, ?) as score
             FROM {self.keyspace}.{self.table_chunks} 
             WHERE user_id = ? 
-            ORDER BY embedding_v3 ANN OF ? LIMIT 10
+            ORDER BY embedding_g4 ANN OF ? LIMIT 10
             """
         )
         result_set = self.session.execute(query, (vector, user_id, vector))
