@@ -119,7 +119,7 @@ def _save_article(db: DB, path: str, text: str, url: str, title: str, user_id: u
     sentence_groups = _group_sentences_with_overlap(sentences, 100)
     group_texts = ([title] if title else []) + [' '.join(group) for group in sentence_groups]
     # print(group_texts)
-    vectors = _encoder(group_texts, normalize_embeddings=True)
+    vectors = _encoder(group_texts)
     db.upsert_chunks(user_id, path, url, title, text, zip(group_texts, vectors), url_id)
 
 
@@ -236,7 +236,7 @@ def recent_urls(db: DB, user_id_str: str, saved_before_str: Optional[str] = None
 
 
 def search(db: DB, user_id_str: str, search_text: str) -> list:
-    vector = _encoder(['query: ' + search_text], normalize_embeddings=True)[0]
+    vector = _encoder(['query: ' + search_text])[0]
     results = db.search(UUID(user_id_str), vector)
     for result in results:
         dt = _uuid1_to_datetime(result['url_id'])
