@@ -43,7 +43,7 @@ def _encode(inputs: list[str]) -> list[list[float]]:
 
 def truncate_to(source, max_tokens):
     truncated_tokens = list(_tokenize(source))[:max_tokens]
-    truncated_s = _gpt_tokenizer.decode(truncated_tokens)
+    truncated_s = tiktoken.encoding_for_model('gpt-3.5-turbo').decode(truncated_tokens)
     return truncated_s
 
 
