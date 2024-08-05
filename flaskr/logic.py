@@ -36,7 +36,6 @@ _tokenize = lambda st: tiktoken.encoding_for_model('gpt-3.5-turbo').encode(st, d
 # Chunk embedding function using Gemini
 def _encode(inputs: list[str]) -> list[list[float]]:
     model = "models/text-embedding-004"
-    print(f"Requesting {len(inputs)} embeddings from Google GenAI")
     result = gemini.embed_content(model=model, content=inputs)
     return result['embedding']
 
