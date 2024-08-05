@@ -38,7 +38,7 @@ def _encoder(inputs: list[str]) -> list[list[float]]:
     model = "models/text-embedding-004"
     print(f"Requesting {len(inputs)} embeddings from Google GenAI")
     result = gemini.embed_content(model=model, content=inputs)
-    return [embedding["values"] for embedding in result]
+    return result['embedding']
 
 
 def truncate_to(source, max_tokens):
