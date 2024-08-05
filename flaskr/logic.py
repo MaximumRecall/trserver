@@ -111,7 +111,7 @@ def _group_sentences_with_overlap(sentences, max_tokens):
         grouped_sentences.append(current_group)
 
     return grouped_sentences
-def _save_article(db: DB, path: str, text: str, url: str, title: str, user_id: uuid4, url_id=None) -> None:
+def _save_article(db: DB, path: str, text: str, url: str, title: str, user_id: uuid4, url_id: Optional[uuid1] = None) -> None:
     text = re.sub(r'\s+', ' ', text)
     sentences = [sentence.strip() for sentence in nltk.sent_tokenize(text)]
     sentence_groups = _group_sentences_with_overlap(sentences, 100)
@@ -123,10 +123,14 @@ def _save_article(db: DB, path: str, text: str, url: str, title: str, user_id: u
 
 def _is_different(text, last_version):
     """True if text is at least 5% different from last_version"""
-    if last_version is None:
+    if not last_version:
         return True
 
-    vectorizer = CountVectorizer().fit_transform([text, last_version])
+    try:
+        vectorizer = CountVectorizer().fit_transform([text, last_version])
+    except ValueError:
+        # something went wrong, err on the side of saving it
+        return True
     vectors = vectorizer.toarray()
     normalized = vectors / np.linalg.norm(vectors, axis=1, keepdims=True)
     dot = np.dot(normalized[0], normalized[1])
@@ -182,7 +186,7 @@ def _uuid1_to_datetime(uuid1: UUID) -> datetime:
     return datetime(1582, 10, 15) + timedelta(microseconds=uuid1.time // 10)
 
 
-def save_if_new(db: DB, url: str, title: str, text: str, user_id_str: str) -> bool:
+def save_if_new(db: DB, url: str, title: str, text: str, user_id_str: str, url_id: Optional[uuid1] = None) -> bool:
     # create a filename based on the current time.  if it already exists, increment it.
     t = time.time_ns()
     while True:
@@ -215,7 +219,7 @@ def save_if_new(db: DB, url: str, title: str, text: str, user_id_str: str) -> bo
         title = summarize(text)
 
     # save the article in the database
-    _save_article(db, path, text, url, title, user_id)
+    _save_article(db, path, text, url, title, user_id, url_id)
     return True
 
 

@@ -18,38 +18,44 @@ def mark_as_processed(file_path: str) -> None:
 
 def rehydrate():
     # Walk through the tr_data_dir
+    all_files = []
     for root, dirs, files in os.walk(tr_data_dir):
         for file in files:
-            if not file.endswith('.gz'):
-                continue
+            if file.endswith('.gz'):
+                file_path = os.path.join(root, file)
+                if is_processed(file_path):
+                    print(f"Skipping already processed file: {file_path}")
+                all_files.append(file_path)
 
-            file_path = os.path.join(root, file)
+    # Sort files based on timestamps
+    sorted_files = sorted(all_files, key=lambda x: int(os.path.splitext(os.path.basename(x))[0]))
 
-            # Skip if already processed
-            if is_processed(file_path):
-                print(f"Skipping already processed file: {file_path}")
-                continue
+    # Process sorted files
+    for file_path in sorted_files:
+        user_id = os.path.basename(os.path.dirname(file_path))
 
-            user_id = os.path.basename(os.path.dirname(file_path))
+        # Parse timestamp from filename and create UUID1
+        timestamp_ns = int(os.path.splitext(os.path.basename(file_path))[0])
+        url_id = uuid.uuid1(clock_seq=timestamp_ns)
 
-            # Read and parse the gzipped JSON file
-            with gzip.open(file_path, 'rt') as f:
-                data: Dict[str, Any] = json.load(f)
+        # Read and parse the gzipped JSON file
+        with gzip.open(file_path, 'rt') as f:
+            data: Dict[str, Any] = json.load(f)
 
-            # Extract necessary information
-            url = data['url']
-            title = data['title']
-            text_content = data['text_content']
-            user_id_str = data['user_id']
+        # Extract necessary information
+        url = data['url']
+        title = data['title']
+        text_content = data['text_content']
+        user_id_str = data['user_id']
 
-            # Ensure the user_id in the filename matches the one in the JSON
-            assert user_id == user_id_str, f"User ID mismatch in {file_path}"
-            # save to db
-            save_if_new(db, url, title, text_content, user_id_str)
-            # Mark as processed
-            mark_as_processed(file_path)
+        # Ensure the user_id in the filename matches the one in the JSON
+        assert user_id == user_id_str, f"User ID mismatch in {file_path}"
+        # Save to db
+        save_if_new(db, url, title, text_content, user_id_str, url_id)
 
-            print(f"Reloaded: {file_path}")
+        # Mark as processed
+        mark_as_processed(file_path)
+        print(f"Reloaded: {file_path}")
 
 
 if __name__ == "__main__":
