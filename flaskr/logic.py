@@ -32,14 +32,10 @@ _gpt_tokenizer = tiktoken.encoding_for_model('gpt-3.5-turbo')
 
 class OpenAiEncoder:
     def encode(self, inputs: list[str], normalize_embeddings=True) -> list[list[float]]:
-        print(f"Requesting {str(len(inputs))} embeddings from openai")
-        start = datetime.now()
         response = openai.Embedding.create(
             input=inputs,
             engine="text-embedding-3-small"
         )
-        end = datetime.now()
-        print(f"Received {str(len(inputs))} embeddings from openai in {str(end - start)}")
         return [data.embedding for data in response.data]
 _encoder = OpenAiEncoder().encode
 
@@ -135,7 +131,7 @@ def _is_different(text, last_version):
     vectors = vectorizer.toarray()
     normalized = vectors / np.linalg.norm(vectors, axis=1, keepdims=True)
     dot = np.dot(normalized[0], normalized[1])
-    print("difference between this and previous version is " + str(dot))
+    print("dot product between this and previous version is " + str(dot))
     return dot < 0.95
 
 
