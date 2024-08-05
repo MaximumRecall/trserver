@@ -30,11 +30,11 @@ if not gemini_key:
     raise Exception('GEMINI_KEY environment variable not set')
 gemini.configure(api_key=gemini_key)
 # TODO update tiktoken and change this to 4o-mini
-_gpt_tokenizer = tiktoken.encoding_for_model('gpt-3.5-turbo')
+_tokenize = lambda st: tiktoken.encoding_for_model('gpt-3.5-turbo').encode(st, disallowed_special=())
 
 
 # Chunk embedding function using Gemini
-def _encoder(inputs: list[str]) -> list[list[float]]:
+def _encode(inputs: list[str]) -> list[list[float]]:
     model = "models/text-embedding-004"
     print(f"Requesting {len(inputs)} embeddings from Google GenAI")
     result = gemini.embed_content(model=model, content=inputs)
@@ -42,8 +42,7 @@ def _encoder(inputs: list[str]) -> list[list[float]]:
 
 
 def truncate_to(source, max_tokens):
-    tokens = list(_gpt_tokenizer.encode(source))
-    truncated_tokens = list(_gpt_tokenizer.encode(source))[:max_tokens]
+    truncated_tokens = list(_tokenize(source))[:max_tokens]
     truncated_s = _gpt_tokenizer.decode(truncated_tokens)
     return truncated_s
 
@@ -73,7 +72,7 @@ def _group_sentences_with_overlap(sentences, max_tokens):
     last_sentence = ""
 
     def token_length(text):
-        return len(list(_gpt_tokenizer.encode(text)))
+        return len(list(_tokenize(text)))
 
     # Group sentences in chunks of max_tokens
     for sentence in sentences:
@@ -119,7 +118,7 @@ def _save_article(db: DB, path: str, text: str, url: str, title: str, user_id: u
     sentence_groups = _group_sentences_with_overlap(sentences, 100)
     group_texts = ([title] if title else []) + [' '.join(group) for group in sentence_groups]
     # print(group_texts)
-    vectors = _encoder(group_texts)
+    vectors = _encode(group_texts)
     db.upsert_chunks(user_id, path, url, title, text, zip(group_texts, vectors), url_id)
 
 
@@ -146,7 +145,7 @@ def _group_sentences_by_tokens(sentences, max_tokens):
 
     # Group sentences in chunks of max_tokens
     for sentence in sentences:
-        token_count = len(list(_gpt_tokenizer.encode(sentence)))
+        token_count = len(list(_tokenize(sentence)))
         if current_token_count + token_count <= max_tokens:
             current_group.append(sentence)
             current_token_count += token_count
@@ -236,7 +235,7 @@ def recent_urls(db: DB, user_id_str: str, saved_before_str: Optional[str] = None
 
 
 def search(db: DB, user_id_str: str, search_text: str) -> list:
-    vector = _encoder(['query: ' + search_text])[0]
+    vector = _encode(['query: ' + search_text])[0]
     results = db.search(UUID(user_id_str), vector)
     for result in results:
         dt = _uuid1_to_datetime(result['url_id'])
