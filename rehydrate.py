@@ -2,6 +2,7 @@ import os
 import gzip
 import json
 from typing import Dict, Any
+from uuid import uuid1
 
 from flaskr.config import db, tr_data_dir
 from flaskr.logic import save_if_new, _is_different
@@ -36,7 +37,7 @@ def rehydrate():
 
         # Parse timestamp from filename and create UUID1
         timestamp_ns = int(os.path.splitext(os.path.basename(file_path))[0])
-        url_id = uuid.uuid1(clock_seq=timestamp_ns)
+        url_id = uuid1(clock_seq=timestamp_ns)
 
         # Read and parse the gzipped JSON file
         with gzip.open(file_path, 'rt') as f:
