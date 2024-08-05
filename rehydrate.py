@@ -42,13 +42,11 @@ def rehydrate():
 
                 # Ensure the user_id in the filename matches the one in the JSON
                 assert user_id == user_id_str, f"User ID mismatch in {file_path}"
-
                 # save to db
                 save_if_new(db, url, title, text_content, user_id_str)
-                
                 # Mark as processed
                 mark_as_processed(file_path)
-                
+
                 print(f"Reloaded: {file_path}")
 
 
