@@ -5,7 +5,7 @@ import time
 from datetime import datetime, timedelta
 from typing import Optional, List
 from urllib.parse import urlparse
-from uuid import UUID, uuid4
+from uuid import uuid4, uuid1, UUID
 
 import nltk
 import numpy as np
