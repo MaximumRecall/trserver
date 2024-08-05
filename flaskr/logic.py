@@ -1,4 +1,7 @@
+import gzip
+import json
 import os
+import time
 from datetime import datetime, timedelta
 from typing import Optional, List
 from urllib.parse import urlparse
@@ -13,6 +16,7 @@ from sklearn.feature_extraction.text import CountVectorizer
 import tiktoken
 from transformers import AutoTokenizer
 
+from .config import tr_data_dir
 from .db import DB
 from .util import humanize_datetime
 
@@ -22,40 +26,41 @@ nltk.download('punkt') # needed locally; in heroku this is done in nltk.txt
 openai.api_key = os.environ.get('OPENAI_KEY')
 if not openai.api_key:
     raise Exception('OPENAI_KEY environment variable not set')
+# TODO update tiktoken and change this to 4o-mini
 _gpt_tokenizer = tiktoken.encoding_for_model('gpt-3.5-turbo')
 
 
-_e5_model = SentenceTransformer('intfloat/e5-small-v2')
-_e5_tokenizer = AutoTokenizer.from_pretrained("intfloat/e5-small-v2")
-_encoder = _e5_model.encode
+class OpenAiEncoder:
+    def encode(self, inputs: list[str], normalize_embeddings=True) -> list[list[float]]:
+        print(f"Requesting {str(len(inputs))} embeddings from openai")
+        start = datetime.now()
+        response = openai.Embedding.create(
+            input=inputs,
+            engine="text-embedding-3-small"
+        )
+        end = datetime.now()
+        print(f"Received {str(len(inputs))} embeddings from openai in {str(end - start)}")
+        return [data.embedding for data in response.data]
+_encoder = OpenAiEncoder().encode
 
 
 def truncate_to(source, max_tokens):
     tokens = list(_gpt_tokenizer.encode(source))
-    truncated_tokens = []
-    total_tokens = 0
-
-    for token in tokens:
-        total_tokens += 1
-        if total_tokens > max_tokens:
-            break
-        truncated_tokens.append(token)
-
+    truncated_tokens = list(_gpt_tokenizer.encode(source))[:max_tokens]
     truncated_s = _gpt_tokenizer.decode(truncated_tokens)
     return truncated_s
 
 
 _summarize_prompt = ("You are a helpful assistant who will give the subject of the provided web page content in a single sentence. "
-                     "Do not begin your response with any prefix."
                      "Give the subject in a form appropriate for an article or book title with no extra preamble or context."
                      "Examples of good responses: "
-                     "The significance of German immigrants in early Texas history, "
-                     "The successes and shortcomings of persistent collections in server-side Java development, "
-                     "A personal account of the benefits of intermittent fasting.")
+                     "`The significance of German immigrants in early Texas history`, "
+                     "`The successes and shortcomings of persistent collections in server-side Java development`, "
+                     "`A personal account of the benefits of intermittent fasting`.")
 def summarize(text: str) -> str:
-    truncated = truncate_to(text, 3900)
+    truncated = truncate_to(text, 16000)
     response = openai.ChatCompletion.create(
-        model="gpt-3.5-turbo",
+        model="gpt-4o-mini",
         messages=[
             {"role": "system", "content": _summarize_prompt},
             {"role": "user", "content": truncated},
@@ -70,33 +75,41 @@ def _group_sentences_with_overlap(sentences, max_tokens):
     current_token_count = 0
     last_sentence = ""
 
+    def token_length(text):
+        return len(list(_gpt_tokenizer.encode(text)))
+
     # Group sentences in chunks of max_tokens
     for sentence in sentences:
-        token_count = len(list(_e5_tokenizer.encode(sentence)))
-        new_token_count = current_token_count + token_count
+        parts_to_process = [sentence]
 
-        # Check if the previous group's last sentence should be added to the current group
-        if last_sentence and new_token_count - len(list(_e5_tokenizer.encode(last_sentence))) <= max_tokens:
-            current_group.append(last_sentence)
-            current_token_count += len(list(_e5_tokenizer.encode(last_sentence)))
-            new_token_count += len(list(_e5_tokenizer.encode(last_sentence)))
+        while parts_to_process:
+            part = parts_to_process.pop(0)
+            token_count = token_length(part)
 
-        # Add the sentence if it fits within the token limit,
-        # otherwise start a new group
-        if new_token_count <= max_tokens:
-            current_group.append(sentence)
-            current_token_count = new_token_count
-        else:
-            grouped_sentences.append(current_group)
-            # cut sentence in half (by word) until it's under the token limit
-            while token_count > max_tokens:
-                words = sentence.split()
-                sentence = ' '.join(words[:len(words)//2])
-                token_count = len(list(_e5_tokenizer.encode(sentence)))
-            current_group = [sentence]
-            current_token_count = token_count
+            # If the part is too long even solo, split it
+            if token_count > max_tokens:
+                words = part.split()
+                mid = len(words) // 2
+                parts_to_process.insert(0, ' '.join(words[mid:]))
+                part = ' '.join(words[:mid])
+                token_count = token_length(part)
 
-        last_sentence = sentence
+            # Check if the previous group's last sentence should be added
+            if last_sentence and current_token_count + token_length(last_sentence) <= max_tokens:
+                current_group.append(last_sentence)
+                current_token_count += token_length(last_sentence)
+
+            # Add the part if it fits, otherwise start a new group
+            if current_token_count + token_count <= max_tokens:
+                current_group.append(part)
+                current_token_count += token_count
+            else:
+                if current_group:
+                    grouped_sentences.append(current_group)
+                current_group = [part]
+                current_token_count = token_count
+
+            last_sentence = part
 
     # Add the last group if it's not empty
     if current_group:
@@ -106,11 +119,10 @@ def _group_sentences_with_overlap(sentences, max_tokens):
 def _save_article(db: DB, path: str, text: str, url: str, title: str, user_id: uuid4, url_id=None) -> None:
     text = re.sub(r'\s+', ' ', text)
     sentences = [sentence.strip() for sentence in nltk.sent_tokenize(text)]
-    sentence_groups = _group_sentences_with_overlap(sentences, 500)
+    sentence_groups = _group_sentences_with_overlap(sentences, 100)
     group_texts = ([title] if title else []) + [' '.join(group) for group in sentence_groups]
     # print(group_texts)
-    flattened = ['passage: ' + chunk for chunk in group_texts]
-    vectors = _encoder(flattened, normalize_embeddings=True)
+    vectors = _encoder(group_texts, normalize_embeddings=True)
     db.upsert_chunks(user_id, path, url, title, text, zip(group_texts, vectors), url_id)
 
 
@@ -158,7 +170,7 @@ def _ai_format(text_content):
     for group in sentence_groups:
         group_text = ' '.join(group)
         response = openai.ChatCompletion.create(
-            model="gpt-3.5-turbo-16k",
+            model="gpt-4o-mini",
             messages=[
                 {"role": "system", "content": _format_prompt},
                 {"role": "user", "content": group_text},
@@ -166,17 +178,36 @@ def _ai_format(text_content):
             stream=True
         )
         for response_piece in response:
-            if response_piece and 'content' in response_piece['choices'][0]['delta']:
-                yield response_piece['choices'][0]['delta']['content']
+            if 'choices' in response_piece and len(response_piece['choices']) > 0:
+                if 'delta' in response_piece['choices'][0] and 'content' in response_piece['choices'][0]['delta']:
+                    yield response_piece['choices'][0]['delta']['content']
 
-
-def _uuid1_to_datetime(uuid1):
+def _uuid1_to_datetime(uuid1: UUID) -> datetime:
     # UUID timestamps are in 100-nanosecond units since 15th October 1582
-    uuid_datetime = datetime(1582, 10, 15) + timedelta(microseconds=uuid1.time // 10)
-    return uuid_datetime
+    return datetime(1582, 10, 15) + timedelta(microseconds=uuid1.time // 10)
 
 
 def save_if_new(db: DB, url: str, title: str, text: str, user_id_str: str) -> bool:
+    # create a filename based on the current time.  if it already exists, increment it.
+    t = time.time_ns()
+    while True:
+        full_path = f'{tr_data_dir}/{user_id_str}/{t}.gz'
+        if not os.path.exists(full_path):
+            break
+        t += 1
+    os.makedirs(os.path.dirname(full_path), exist_ok=True)
+    # json-ify the raw request
+    request_json = {
+        "url": url,
+        "title": title,
+        "text_content": text,
+        "user_id": user_id_str
+    }
+    # write the request json to the file
+    with gzip.open(full_path, 'wt') as f:
+        json.dump(request_json, f)
+
+    # check if the article is sufficiently different from the last version of the same url
     user_id = UUID(user_id_str)
     parsed = urlparse(url)
     path = parsed.hostname + parsed.path
@@ -184,8 +215,11 @@ def save_if_new(db: DB, url: str, title: str, text: str, user_id_str: str) -> bo
     if not _is_different(text, last_version):
         return False
 
+    # generate a more useful title if necessary
     if len(title) < 15:
         title = summarize(text)
+
+    # save the article in the database
     _save_article(db, path, text, url, title, user_id)
     return True
 
@@ -216,19 +250,19 @@ def search(db: DB, user_id_str: str, search_text: str) -> list:
 def load_snapshot(db: DB, user_id_str: str, url_id_str: str) -> tuple[str, str]:
     user_id = UUID(user_id_str)
     url_id = UUID(url_id_str)
-    _, title, _, formatted_content = db.load_snapshot(user_id, url_id)
+    _, _, title, _, formatted_content = db.load_snapshot(user_id, url_id)
     return title, formatted_content
 
 def stream_snapshot(db: DB, user_id_str: str, url_id_str: str) -> tuple[str, str]:
     user_id = UUID(user_id_str)
     url_id = UUID(url_id_str)
-    url_id, title, text_content, formatted_content = db.load_snapshot(user_id, url_id)
+    url_id, path, title, text_content, formatted_content = db.load_snapshot(user_id, url_id)
 
     formatted_pieces = []
     for piece in _ai_format(text_content):
         formatted_pieces.append(piece)
         yield piece
-    formatted_content = ' '.join(formatted_pieces)
+    formatted_content = ''.join(formatted_pieces)
     db.save_formatting(user_id, url_id, path, formatted_content)
 
 def _upgrade(db, _encoder, start_at=463):

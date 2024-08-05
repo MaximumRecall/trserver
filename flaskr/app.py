@@ -1,5 +1,6 @@
 import json
 import os
+from uuid import UUID
 
 from flask import Flask, request, render_template, jsonify, Response, stream_with_context
 
@@ -70,17 +71,19 @@ def save_if_new():
 @stream_with_context
 def snapshot(user_id_str, url_id_str):
     title, formatted_content = logic.load_snapshot(db, user_id_str, url_id_str)
+    saved_at = logic._uuid1_to_datetime(UUID(url_id_str))
     return render_template('snapshot.html',
                            user_id_str=user_id_str,
                            url_id_str=url_id_str,
+                           saved_at_str=str(saved_at),
                            title=title,
                            formatted_content=formatted_content)
 
-@app.route('/snapshot/stream/<user_id_str>/<path:url>/<saved_at_str>/', methods=['GET'])
+@app.route('/snapshot/stream/<user_id_str>/<url_id_str>/', methods=['GET'])
 @stream_with_context
-def snapshot_stream(user_id_str, url, saved_at_str):
+def snapshot_stream(user_id_str, url_id_str):
     def generate():
-        for formatted_content in logic.load_snapshot(db, user_id_str, url, saved_at_str):
+        for formatted_content in logic.stream_snapshot(db, user_id_str, url_id_str):
             yield 'data: {}\n\n'.format(json.dumps({"formatted_content": formatted_content}))
         yield 'event: EOF\ndata: {}\n\n'
     return Response(generate(), mimetype='text/event-stream')
